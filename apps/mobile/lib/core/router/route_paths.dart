@@ -66,6 +66,17 @@ abstract final class RoutePaths {
   /// Government Schemes catalogue: /schemes
   static const String schemes = '/schemes';
 
+  /// Crop Doctor AI Pathology & Diagnostics
+  static const String cropDoctor = '/crop-doctor';
+
+  /// Unified Heat Risk Hub (Worker Heat Risk & Crop Heat Risk)
+  static const String risk = '/risk';
+  static const String riskWorkerHeat = '/risk/worker-heat';
+  static const String riskCropHeat = '/risk/crop-heat';
+
+  /// Extra Income & Diversification
+  static const String extraIncome = '/extra-income';
+
   /// Government Scheme detail: /schemes/:schemeId
   static const String schemeDetail = '/schemes/:schemeId';
 

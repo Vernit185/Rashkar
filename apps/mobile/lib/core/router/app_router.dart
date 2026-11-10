@@ -22,6 +22,9 @@ import 'package:cropnet_mobile/features/schemes/presentation/screens/schemes_lis
 import 'package:cropnet_mobile/features/schemes/presentation/screens/scheme_detail_screen.dart';
 import 'package:cropnet_mobile/features/schemes/presentation/screens/scheme_admin_screen.dart';
 import 'package:cropnet_mobile/features/schemes/presentation/screens/scheme_editor_screen.dart';
+import 'package:cropnet_mobile/features/crop_doctor/presentation/screens/crop_doctor_screen.dart';
+import 'package:cropnet_mobile/features/rashkar/presentation/screens/risk_hub_screen.dart';
+import 'package:cropnet_mobile/features/rashkar/presentation/screens/extra_income_screen.dart';
 import 'package:cropnet_mobile/main.dart';
 
 // Navigator Keys for Root and Stateful Shell Branches
@@ -42,6 +45,12 @@ final GlobalKey<NavigatorState> _shellNavigatorHistory =
     GlobalKey<NavigatorState>(debugLabel: 'shellHistory');
 final GlobalKey<NavigatorState> _shellNavigatorSchemes =
     GlobalKey<NavigatorState>(debugLabel: 'shellSchemes');
+final GlobalKey<NavigatorState> _shellNavigatorCropDoctor =
+    GlobalKey<NavigatorState>(debugLabel: 'shellCropDoctor');
+final GlobalKey<NavigatorState> _shellNavigatorRisk =
+    GlobalKey<NavigatorState>(debugLabel: 'shellRisk');
+final GlobalKey<NavigatorState> _shellNavigatorExtraIncome =
+    GlobalKey<NavigatorState>(debugLabel: 'shellExtraIncome');
 
 /// Creates and configures the CropNet AI GoRouter instance.
 GoRouter createCropNetRouter({
@@ -402,6 +411,69 @@ GoRouter createCropNetRouter({
                     },
                   ),
                 ],
+              ),
+            ],
+          ),
+
+          // Branch 7: Crop Doctor AI Pathology & Diagnostics
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorCropDoctor,
+            routes: [
+              GoRoute(
+                path: RoutePaths.cropDoctor,
+                name: RouteNames.cropDoctor,
+                builder: (context, state) => const CropDoctorScreen(),
+              ),
+            ],
+          ),
+
+          // Branch 8: Heat Risk Hub (Worker Heat Risk & Crop Heat Risk)
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorRisk,
+            routes: [
+              GoRoute(
+                path: RoutePaths.risk,
+                name: RouteNames.risk,
+                builder: (context, state) {
+                  final tabParam = state.uri.queryParameters['tab'];
+                  final initialTab = tabParam == 'crop' ? 1 : 0;
+                  return RiskHubScreen(
+                    initialTab: initialTab,
+                    initialFarmId: state.uri.queryParameters['farmId'],
+                  );
+                },
+                routes: [
+                  GoRoute(
+                    path: 'worker-heat',
+                    name: RouteNames.riskWorkerHeat,
+                    builder: (context, state) => RiskHubScreen(
+                      initialTab: 0,
+                      initialFarmId: state.uri.queryParameters['farmId'],
+                    ),
+                  ),
+                  GoRoute(
+                    path: 'crop-heat',
+                    name: RouteNames.riskCropHeat,
+                    builder: (context, state) => RiskHubScreen(
+                      initialTab: 1,
+                      initialFarmId: state.uri.queryParameters['farmId'],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Branch 9: Extra Income & Diversification
+          StatefulShellBranch(
+            navigatorKey: _shellNavigatorExtraIncome,
+            routes: [
+              GoRoute(
+                path: RoutePaths.extraIncome,
+                name: RouteNames.extraIncome,
+                builder: (context, state) => ExtraIncomeScreen(
+                  initialFarmId: state.uri.queryParameters['farmId'],
+                ),
               ),
             ],
           ),

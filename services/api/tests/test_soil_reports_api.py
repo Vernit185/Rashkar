@@ -42,8 +42,12 @@ class _WorktreePathFinder:
             parent_name = fullname.rsplit(".", 1)[0]
             if parent_name in sys.modules and hasattr(sys.modules[parent_name], "__path__"):
                 parent_sub = _worktree_root + parent_name[len("cropnet"):].replace(".", "/")
-                if os.path.exists(parent_sub) and parent_sub not in sys.modules[parent_name].__path__:
-                    sys.modules[parent_name].__path__.insert(0, parent_sub)
+                _p = sys.modules[parent_name].__path__
+                if os.path.exists(parent_sub) and parent_sub not in _p:
+                    if hasattr(_p, 'insert'):
+                        _p.insert(0, parent_sub)
+                    elif hasattr(_p, 'append'):
+                        _p.append(parent_sub)
         return None
 
 if not any(isinstance(finder, type) and finder.__name__ == "_WorktreePathFinder" for finder in sys.meta_path):
@@ -54,8 +58,12 @@ for _mod_name, _mod in list(sys.modules.items()):
         if hasattr(_mod, "__path__"):
             _rel = _mod_name[len("cropnet"):].replace(".", "/")
             _subpath = _worktree_root + _rel
-            if os.path.exists(_subpath) and _subpath not in _mod.__path__:
-                _mod.__path__.insert(0, _subpath)
+            _p = _mod.__path__
+            if os.path.exists(_subpath) and _subpath not in _p:
+                if hasattr(_p, 'insert'):
+                    _p.insert(0, _subpath)
+                elif hasattr(_p, 'append'):
+                    _p.append(_subpath)
 
 from cropnet.services.api.app.models.soil_and_farm import Base
 from cropnet.services.api.app.models.soil_reports import SoilTestReportModel, SoilMeasurementModel

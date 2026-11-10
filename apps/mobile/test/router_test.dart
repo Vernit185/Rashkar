@@ -52,6 +52,12 @@ void main() {
       expect(RoutePaths.weather, '/weather');
       expect(RoutePaths.advisory, '/advisory');
       expect(RoutePaths.history, '/history');
+      expect(RoutePaths.schemes, '/schemes');
+      expect(RoutePaths.cropDoctor, '/crop-doctor');
+      expect(RoutePaths.risk, '/risk');
+      expect(RoutePaths.riskWorkerHeat, '/risk/worker-heat');
+      expect(RoutePaths.riskCropHeat, '/risk/crop-heat');
+      expect(RoutePaths.extraIncome, '/extra-income');
     });
 
     test('Detail and sub-route parameter paths helper methods work as expected', () {
@@ -75,6 +81,12 @@ void main() {
         RouteNames.weatherDetail,
         RouteNames.cropDetail,
         RouteNames.about,
+        RouteNames.schemes,
+        RouteNames.cropDoctor,
+        RouteNames.risk,
+        RouteNames.riskWorkerHeat,
+        RouteNames.riskCropHeat,
+        RouteNames.extraIncome,
       ];
       final uniqueNames = names.toSet();
       expect(uniqueNames.length, names.length);
@@ -296,6 +308,30 @@ void main() {
       expect(find.text('My Registered Farms'), findsOneWidget);
 
       // Advance fake clock past ApiClient timeout so no pending timers remain
+      await tester.pump(const Duration(seconds: 31));
+    });
+
+    testWidgets('Deep links to /crop-doctor, /risk, /risk/crop-heat and /extra-income', (tester) async {
+      setDesktopViewport(tester);
+
+      final cropDocRouter = createCropNetRouter(initialLocation: RoutePaths.cropDoctor);
+      await tester.pumpWidget(CropNetApp(routerConfig: cropDocRouter));
+      await tester.pump();
+      expect(find.text('Crop Doctor'), findsAtLeastNWidgets(1));
+      await tester.pump(const Duration(seconds: 31));
+
+      final riskRouter = createCropNetRouter(initialLocation: RoutePaths.riskCropHeat);
+      await tester.pumpWidget(CropNetApp(routerConfig: riskRouter));
+      await tester.pump();
+      expect(find.text('Farm & Worker Heat Risk'), findsOneWidget);
+      expect(find.text('Worker Heat Risk'), findsOneWidget);
+      expect(find.text('Crop Heat Risk'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 31));
+
+      final incomeRouter = createCropNetRouter(initialLocation: RoutePaths.extraIncome);
+      await tester.pumpWidget(CropNetApp(routerConfig: incomeRouter));
+      await tester.pump();
+      expect(find.text('Extra Income & Diversification'), findsOneWidget);
       await tester.pump(const Duration(seconds: 31));
     });
   });

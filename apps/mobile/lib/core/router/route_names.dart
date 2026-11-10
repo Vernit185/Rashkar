@@ -30,6 +30,11 @@ abstract final class RouteNames {
 
   // Government Schemes names
   static const String schemes = 'schemes';
+  static const String cropDoctor = 'cropDoctor';
+  static const String risk = 'risk';
+  static const String riskWorkerHeat = 'riskWorkerHeat';
+  static const String riskCropHeat = 'riskCropHeat';
+  static const String extraIncome = 'extraIncome';
   static const String schemeDetail = 'schemeDetail';
   static const String schemesAdmin = 'schemesAdmin';
   static const String schemesAdminNew = 'schemesAdminNew';

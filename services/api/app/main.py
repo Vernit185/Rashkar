@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -7,12 +8,19 @@ from starlette.responses import JSONResponse
 
 from cropnet.services.api.app.core.config import settings
 from cropnet.services.api.app.core.logging import setup_logging
+from cropnet.services.api.app.core.database import engine, SessionLocal
 from cropnet.services.api.app.api.v1.router import api_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    if not os.environ.get("PYTEST_CURRENT_TEST"):
+        try:
+            from cropnet.services.api.app.services.rashkar.db_init import ensure_rashkar_schema_and_seed
+            ensure_rashkar_schema_and_seed(engine, SessionLocal)
+        except Exception:
+            pass
     yield
 
 

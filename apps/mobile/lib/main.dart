@@ -20,6 +20,8 @@ import 'package:cropnet_mobile/features/weather/models/weather_models.dart';
 import 'package:cropnet_mobile/features/crop/data/crop_repository.dart';
 import 'package:cropnet_mobile/features/crop/models/crop_models.dart';
 import 'package:cropnet_mobile/features/satellite/presentation/widgets/satellite_vegetation_summary_card.dart';
+import 'package:cropnet_mobile/features/rashkar/data/rashkar_repository.dart';
+import 'package:cropnet_mobile/features/rashkar/models/rashkar_models.dart';
 import 'package:cropnet_mobile/features/auth/auth_service.dart';
 import 'package:cropnet_mobile/features/auth/auth_state.dart';
 
@@ -426,6 +428,22 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
   String _irrigationType = "irrigated";
   String _waterSource = "canal";
 
+  // Shared Registration Fields (Crop Cycle + Farmer & Resource Profile)
+  bool _includeCropCycle = false;
+  bool _saveSharedProfile = false;
+  final TextEditingController _plotNameController = TextEditingController(text: 'Main Plot 1');
+  final TextEditingController _sowingDateController = TextEditingController();
+  final TextEditingController _farmerNameController = TextEditingController();
+  final TextEditingController _farmerPhoneController = TextEditingController();
+  final TextEditingController _budgetController = TextEditingController(text: '0');
+  String _cropCode = 'soybean';
+  String _cropSeason = 'kharif';
+  String _defaultWorkload = 'moderate';
+  String _defaultSunExposure = 'direct_sun';
+  String _ageRange = '36-45';
+  String _workPreference = 'daily_physical';
+  double _familyLaborHours = 2.0;
+
   final List<LatLng> _polygonPoints = [];
   double _calculatedAreaHectares = 0.0;
   double _calculatedAreaAcres = 0.0;
@@ -441,6 +459,10 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now().subtract(const Duration(days: 45));
+    _sowingDateController.text =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
     final farm = widget.farmToEdit;
     _nameController = TextEditingController(text: farm?.name ?? "");
     _villageController = TextEditingController(text: farm?.village ?? "");
@@ -451,13 +473,46 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
       _polygonPoints.addAll(farm.polygonPoints);
       _calculatedAreaHectares = farm.areaHectares;
       _calculatedAreaAcres = farm.areaAcres;
+      _loadExistingSharedContext(farm.id);
     }
+  }
+
+  Future<void> _loadExistingSharedContext(String farmId) async {
+    try {
+      final ctx = await RashkarRepository.instance.getSharedContext(farmId);
+      if (!mounted) return;
+      setState(() {
+        _farmerNameController.text = ctx.farmerProfile.fullName ?? '';
+        _farmerPhoneController.text = ctx.farmerProfile.phoneNumber ?? '';
+        _defaultWorkload = ctx.farmerProfile.defaultWorkloadCategory ?? _defaultWorkload;
+        _defaultSunExposure = ctx.farmerProfile.defaultSunExposure ?? _defaultSunExposure;
+        _ageRange = ctx.farmerProfile.ageRange ?? ctx.resourceProfile.ageRange ?? _ageRange;
+        _workPreference = ctx.farmerProfile.workPreference ?? ctx.resourceProfile.workPreference ?? _workPreference;
+        if (ctx.resourceProfile.availableInvestmentInr != null) {
+          _budgetController.text = ctx.resourceProfile.availableInvestmentInr!.round().toString();
+        }
+        if (ctx.resourceProfile.familyLaborHoursDay != null) {
+          _familyLaborHours = ctx.resourceProfile.familyLaborHoursDay!.clamp(0.5, 6.0);
+        }
+        if (ctx.cropCycles.isNotEmpty) {
+          _plotNameController.text = ctx.cropCycles.first.plotName;
+          _cropCode = ctx.cropCycles.first.cropCode;
+          _cropSeason = ctx.cropCycles.first.season;
+          _sowingDateController.text = ctx.cropCycles.first.sowingDate;
+        }
+      });
+    } catch (_) {}
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _villageController.dispose();
+    _plotNameController.dispose();
+    _sowingDateController.dispose();
+    _farmerNameController.dispose();
+    _farmerPhoneController.dispose();
+    _budgetController.dispose();
     super.dispose();
   }
 
@@ -527,6 +582,7 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
       }
       final geometry = farm_models.GeoJsonPolygon(coordinates: [ring]);
 
+      final FarmItem savedFarm;
       if (widget.farmToEdit != null) {
         final payload = farm_models.FarmUpdate(
           name: _nameController.text.trim(),
@@ -537,8 +593,7 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
           waterSource: _waterSource,
           geometry: geometry,
         );
-        final updated = await FarmRepository.instance.updateFarmRemote(widget.farmToEdit!.id, payload);
-        widget.onSave(updated);
+        savedFarm = await FarmRepository.instance.updateFarmRemote(widget.farmToEdit!.id, payload);
       } else {
         final payload = farm_models.FarmCreate(
           name: _nameController.text.trim(),
@@ -550,9 +605,56 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
           waterSource: _waterSource,
           geometry: geometry,
         );
-        final created = await FarmRepository.instance.createFarm(payload);
-        widget.onSave(created);
+        savedFarm = await FarmRepository.instance.createFarm(payload);
       }
+
+      if (_saveSharedProfile ||
+          _farmerNameController.text.trim().isNotEmpty ||
+          _farmerPhoneController.text.trim().isNotEmpty) {
+        try {
+          final parsedBudget = double.tryParse(_budgetController.text.trim()) ?? 0.0;
+          final waterEnum = (_waterSource == 'borewell' || _waterSource == 'canal')
+              ? 'seasonal_canal'
+              : (_irrigationType == 'irrigated' ? 'reliable_year_round' : 'rainfed_limited');
+          await RashkarRepository.instance.updateSharedContext(
+            savedFarm.id,
+            farmerProfile: SharedFarmerProfile(
+              fullName: _farmerNameController.text.trim().isNotEmpty ? _farmerNameController.text.trim() : null,
+              phoneNumber: _farmerPhoneController.text.trim().isNotEmpty ? _farmerPhoneController.text.trim() : null,
+              ageRange: _ageRange,
+              workPreference: _workPreference,
+              defaultWorkloadCategory: _defaultWorkload,
+              defaultSunExposure: _defaultSunExposure,
+            ),
+            resourceProfile: FarmerResourceProfile(
+              farmId: savedFarm.id,
+              availableInvestmentInr: parsedBudget < 0 ? 0.0 : parsedBudget,
+              totalFarmAcres: _calculatedAreaAcres > 0 ? _calculatedAreaAcres : null,
+              waterAvailability: waterEnum,
+              familyLaborHoursDay: _familyLaborHours,
+              ageRange: _ageRange,
+              workPreference: _workPreference,
+              currentCropCode: _includeCropCycle ? _cropCode : null,
+            ),
+          );
+        } catch (_) {}
+      }
+
+      if (_includeCropCycle && _sowingDateController.text.trim().isNotEmpty) {
+        try {
+          await RashkarRepository.instance.createCropCycle(
+            savedFarm.id,
+            plotName: _plotNameController.text.trim().isEmpty ? 'Main Plot 1' : _plotNameController.text.trim(),
+            cropCode: _cropCode,
+            season: _cropSeason,
+            sowingDate: _sowingDateController.text.trim(),
+            plantedAreaAcres: _calculatedAreaAcres > 0 ? _calculatedAreaAcres : null,
+            irrigationType: _irrigationType,
+          );
+        } catch (_) {}
+      }
+
+      widget.onSave(savedFarm);
 
       if (mounted) {
         Navigator.pop(context);
@@ -851,6 +953,257 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
                     ),
                     const SizedBox(height: 16),
 
+                    // Optional Shared Crop Planting Section (reused across Crop Heat Risk & Extra Income)
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      child: ExpansionTile(
+                        title: const Text(
+                          'Planted Crop Details (Shared · Optional)',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                        ),
+                        subtitle: const Text(
+                          'Saved once and reused in Crop Heat Risk & Extra Income',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        onExpansionChanged: (expanded) {
+                          if (expanded && !_includeCropCycle) {
+                            setState(() => _includeCropCycle = true);
+                          }
+                        },
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                            child: Column(
+                              children: [
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: const Text('Save crop cycle with this farm', style: TextStyle(fontSize: 12)),
+                                  value: _includeCropCycle,
+                                  onChanged: (v) => setState(() => _includeCropCycle = v),
+                                ),
+                                TextFormField(
+                                  controller: _plotNameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Plot Name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _cropCode,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Standing Crop',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'soybean', child: Text('Soybean')),
+                                          DropdownMenuItem(value: 'cotton', child: Text('Cotton')),
+                                          DropdownMenuItem(value: 'sugarcane', child: Text('Sugarcane')),
+                                          DropdownMenuItem(value: 'wheat', child: Text('Wheat')),
+                                          DropdownMenuItem(value: 'maize', child: Text('Maize')),
+                                          DropdownMenuItem(value: 'rice', child: Text('Rice (Paddy)')),
+                                          DropdownMenuItem(value: 'pigeonpea', child: Text('Pigeonpea (Tur)')),
+                                          DropdownMenuItem(value: 'chickpea', child: Text('Chickpea (Gram)')),
+                                          DropdownMenuItem(value: 'groundnut', child: Text('Groundnut')),
+                                          DropdownMenuItem(value: 'tomato', child: Text('Tomato')),
+                                          DropdownMenuItem(value: 'onion', child: Text('Onion')),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setState(() {
+                                              _cropCode = v;
+                                              _includeCropCycle = true;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _cropSeason,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Season',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'kharif', child: Text('Kharif')),
+                                          DropdownMenuItem(value: 'rabi', child: Text('Rabi')),
+                                          DropdownMenuItem(value: 'summer', child: Text('Summer')),
+                                          DropdownMenuItem(value: 'perennial', child: Text('Perennial')),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) setState(() => _cropSeason = v);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                TextFormField(
+                                  controller: _sowingDateController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Sowing Date (YYYY-MM-DD)',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Optional Shared Farmer, Worker & Resource Defaults Section
+                    Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      child: ExpansionTile(
+                        title: const Text(
+                          'Farmer, Worker & Resource Defaults (Shared · Optional)',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                        ),
+                        subtitle: const Text(
+                          'Collect once for Worker Heat Risk & Extra Income',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        onExpansionChanged: (expanded) {
+                          if (expanded && !_saveSharedProfile) {
+                            setState(() => _saveSharedProfile = true);
+                          }
+                        },
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                            child: Column(
+                              children: [
+                                TextFormField(
+                                  controller: _farmerNameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Farmer Full Name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                TextFormField(
+                                  controller: _farmerPhoneController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Phone Number',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _defaultWorkload,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Field Workload',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'light', child: Text('Light')),
+                                          DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
+                                          DropdownMenuItem(value: 'heavy', child: Text('Heavy')),
+                                          DropdownMenuItem(value: 'very_heavy', child: Text('Very Heavy')),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setState(() {
+                                              _defaultWorkload = v;
+                                              _saveSharedProfile = true;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _defaultSunExposure,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Sun Exposure',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'direct_sun', child: Text('Direct Sun')),
+                                          DropdownMenuItem(value: 'partial_shade', child: Text('Partial Shade')),
+                                          DropdownMenuItem(value: 'full_shade', child: Text('Full Shade')),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setState(() {
+                                              _defaultSunExposure = v;
+                                              _saveSharedProfile = true;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _budgetController,
+                                        keyboardType: TextInputType.number,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Available Cash Budget (₹)',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: DropdownButtonFormField<String>(
+                                        initialValue: _ageRange,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Age Range',
+                                          border: OutlineInputBorder(),
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(value: 'under_25', child: Text('Under 25')),
+                                          DropdownMenuItem(value: '25-35', child: Text('25–35 yrs')),
+                                          DropdownMenuItem(value: '36-45', child: Text('36–45 yrs')),
+                                          DropdownMenuItem(value: '46-55', child: Text('46–55 yrs')),
+                                          DropdownMenuItem(value: '56-65', child: Text('56–65 yrs')),
+                                          DropdownMenuItem(value: 'above_65', child: Text('Above 65')),
+                                          DropdownMenuItem(value: 'prefer_not_to_say', child: Text('Prefer not to say')),
+                                        ],
+                                        onChanged: (v) {
+                                          if (v != null) {
+                                            setState(() {
+                                              _ageRange = v;
+                                              _saveSharedProfile = true;
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1B5E20),
@@ -1110,6 +1463,8 @@ class FarmDetailScreen extends StatelessWidget {
                       context.push(RoutePaths.farmVegetationPath(farm.id));
                     },
                   ),
+                  const SizedBox(height: 16),
+                  _FarmSharedRiskIncomeCard(farmId: farm.id),
                 ],
               ),
             ),
@@ -1153,6 +1508,131 @@ class FarmDetailScreen extends StatelessWidget {
             child: const Text('Delete'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FarmSharedRiskIncomeCard extends StatefulWidget {
+  final String farmId;
+  const _FarmSharedRiskIncomeCard({required this.farmId});
+
+  @override
+  State<_FarmSharedRiskIncomeCard> createState() => _FarmSharedRiskIncomeCardState();
+}
+
+class _FarmSharedRiskIncomeCardState extends State<_FarmSharedRiskIncomeCard> {
+  SharedFarmContext? _sharedContext;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContext();
+  }
+
+  Future<void> _loadContext() async {
+    try {
+      final ctx = await RashkarRepository.instance.getSharedContext(widget.farmId);
+      if (!mounted) return;
+      setState(() {
+        _sharedContext = ctx;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ctx = _sharedContext;
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFC8E6C9)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.hub_outlined, color: Color(0xFF1B5E20), size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Shared Plots, Heat Risk & Extra Income',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1B5E20)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_loading)
+              const LinearProgressIndicator(color: Color(0xFF2E7D32))
+            else if (ctx != null) ...[
+              Text(
+                ctx.cropCycles.isEmpty
+                    ? 'Active Crops: None recorded yet (add once in Crop Heat Risk or Edit Farm).'
+                    : 'Active Crops: ${ctx.cropCycles.map((c) => "${c.cropCode.toUpperCase()} (${c.plotName})").join(", ")}',
+                style: const TextStyle(fontSize: 12, color: Colors.black87),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Worker Profile: ${ctx.farmerProfile.defaultWorkloadCategory ?? "not set"} · Budget: ₹${(ctx.resourceProfile.availableInvestmentInr ?? 0).round()}',
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ] else
+              const Text(
+                'Use your registered farm details across Worker Heat Risk, Crop Heat Risk, and Extra Income.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD84315),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    FarmRepository.instance.selectFarm(widget.farmId);
+                    context.go('${RoutePaths.riskWorkerHeat}?farmId=${widget.farmId}');
+                  },
+                  icon: const Icon(Icons.engineering_outlined, size: 18),
+                  label: const Text('Worker Heat Risk'),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    FarmRepository.instance.selectFarm(widget.farmId);
+                    context.go('${RoutePaths.riskCropHeat}?farmId=${widget.farmId}');
+                  },
+                  icon: const Icon(Icons.eco_outlined, size: 18),
+                  label: const Text('Crop Heat Risk'),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1B5E20),
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    FarmRepository.instance.selectFarm(widget.farmId);
+                    context.go('${RoutePaths.extraIncome}?farmId=${widget.farmId}');
+                  },
+                  icon: const Icon(Icons.savings_outlined, size: 18),
+                  label: const Text('Extra Income'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

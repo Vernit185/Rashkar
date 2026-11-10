@@ -13,3 +13,19 @@ from .satellite import SatelliteVegetationObservationModel
 from .weather import FarmWeatherSnapshotModel, FarmClimateSummaryModel
 from .crops import CropCatalogModel
 from .government_schemes import GovernmentSchemeModel
+from .rashkar_profiles import (
+    FarmerModel,
+    FarmerUserAccountModel,
+    FarmPlotModel,
+    CropCycleModel,
+    CanonicalCropMasterModel,
+    CropStageReferenceModel,
+    AgronomicThresholdRegistryModel,
+    AgronomicAdvisoryCatalogueModel,
+    WorkerHazardAuditLogModel,
+    CropHeatAssessmentLogModel,
+    FarmerResourceProfileModel,
+    IncomeOpportunityModel,
+    IncomeScenarioModel,
+    SavedIncomePlanModel,
+)

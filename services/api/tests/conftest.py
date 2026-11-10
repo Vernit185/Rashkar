@@ -15,7 +15,9 @@ from fastapi.testclient import TestClient
 
 from cropnet.services.api.app.models.soil_and_farm import Base
 import cropnet.services.api.app.models.crops
+import cropnet.services.api.app.models.rashkar_profiles
 from cropnet.services.api.app.services.crop_knowledge.crop_service import CropKnowledgeService
+from cropnet.services.api.app.services.rashkar.db_init import ensure_rashkar_schema_and_seed
 from cropnet.services.api.app.core import database
 from cropnet.services.api.app.core.config import settings
 from cropnet.services.api.app.core.database import get_db
@@ -39,6 +41,7 @@ _seed_session = _TestingSession()
 _service = CropKnowledgeService()
 _service.seed_knowledge_base(_seed_session)
 _seed_session.close()
+ensure_rashkar_schema_and_seed(_test_engine, _TestingSession)
 
 
 @pytest.fixture(scope="session", autouse=True)

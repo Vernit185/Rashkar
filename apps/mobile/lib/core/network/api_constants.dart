@@ -73,4 +73,25 @@ class ApiConstants {
   static const String schemesSeed = '$apiV1Prefix/schemes/seed';
   static String schemeById(String schemeId) => '$apiV1Prefix/schemes/$schemeId';
   static String schemeStatus(String schemeId) => '$apiV1Prefix/schemes/$schemeId/status';
+
+  // --- Shared Farmer / Plot / Crop Context (Integrated Rashkar Single Source of Truth) ---
+  static String farmSharedContext(String farmId) => '$apiV1Prefix/farms/$farmId/shared-context';
+  static String farmPlots(String farmId) => '$apiV1Prefix/farms/$farmId/plots';
+  static String farmCropCycles(String farmId) => '$apiV1Prefix/farms/$farmId/crop-cycles';
+  static String farmCropCycleStage(String farmId, String cycleId) =>
+      '$apiV1Prefix/farms/$farmId/crop-cycles/$cycleId/stage';
+
+  // --- Rashkar Risk Intelligence Endpoints ---
+  static const String cropHeatSupportedCrops = '$apiV1Prefix/risk/crop-heat/supported-crops';
+  static String farmWorkerHeat(String farmId) => '$apiV1Prefix/risk/farms/$farmId/worker-heat';
+  static String farmCropHeat(String farmId) => '$apiV1Prefix/risk/farms/$farmId/crop-heat';
+
+  // --- Rashkar Extra Income Endpoints ---
+  static const String incomeOpportunities = '$apiV1Prefix/income/opportunities';
+  static const String incomeCalculateScenario = '$apiV1Prefix/income/calculate-scenario';
+  static const String incomeCompareOpportunities = '$apiV1Prefix/income/compare-opportunities';
+  static String incomeFarmProfile(String farmId) => '$apiV1Prefix/income/farms/$farmId/profile';
+  static String incomeFarmDiscover(String farmId) => '$apiV1Prefix/income/farms/$farmId/discover';
+  static String incomeFarmPlans(String farmId) => '$apiV1Prefix/income/farms/$farmId/plans';
+  static String incomeFarmPlanById(String farmId, String planId) => '$apiV1Prefix/income/farms/$farmId/plans/$planId';
 }
