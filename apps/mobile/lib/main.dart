@@ -1136,7 +1136,7 @@ class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
 
         const SizedBox(height: 20),
 
-        // 5. SIMPLE FARM ACCESS
+        // 5. QUICK FARM ACCESS
         RashkarCard(
           backgroundColor: RashkarColors.surface,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1144,36 +1144,21 @@ class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
             children: [
               const Icon(Icons.landscape_outlined, size: 20, color: RashkarColors.forest),
               const SizedBox(width: 10),
-              Expanded(
+              const Expanded(
                 child: Text(
-                  '${farm.name} · ${farm.areaAcres.toStringAsFixed(1)} acres · ${farm.taluka}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                  'My Farm Map & Details',
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
                     color: RashkarColors.ink,
                   ),
                 ),
               ),
-              TextButton.icon(
+              OutlinedButton.icon(
                 icon: const Icon(Icons.map_outlined, size: 16),
-                label: const Text('View Boundary'),
+                label: const Text('View Farm'),
                 onPressed: () => context.push(RoutePaths.farmDetailPath(farm.id)),
               ),
-              if (widget.farms.length > 1) ...[
-                const SizedBox(width: 6),
-                TextButton.icon(
-                  icon: const Icon(Icons.add_location_alt_outlined, size: 16),
-                  label: const Text('Add Farm'),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (ctx) => AddEditFarmScreen(onSave: widget.onAddFarm),
-                      ),
-                    );
-                  },
-                ),
-              ],
             ],
           ),
         ),
@@ -2252,25 +2237,81 @@ class FarmDetailScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        RashkarIndicatorListCard(
-          title: 'Plot Characteristics:',
-          rows: [
-            MapEntry(
-              'Administrative Location',
-              '${farm.village != null ? "${farm.village}, " : ""}${farm.taluka}, ${farm.district}',
-            ),
-            MapEntry(
-              'Centroid Coordinates',
-              '${farm.centroid.latitude.toStringAsFixed(5)}, ${farm.centroid.longitude.toStringAsFixed(5)}',
-            ),
-            MapEntry(
-              'Calculated Area',
-              '${farm.areaHectares.toStringAsFixed(2)} hectares (${farm.areaAcres.toStringAsFixed(2)} acres)',
-            ),
-            MapEntry('Irrigation Type', farm.irrigationType.toUpperCase()),
-            MapEntry('Water Source', farm.waterSource.toUpperCase()),
-            MapEntry('Boundary Points', '${farm.polygonPoints.length} vertices (GeoJSON Polygon)'),
-          ],
+        RashkarCard(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Farm Details',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: RashkarColors.ink),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Area', style: TextStyle(color: RashkarColors.mutedInk, fontSize: 14)),
+                  Text('${farm.areaAcres.toStringAsFixed(1)} acres (${farm.areaHectares.toStringAsFixed(2)} ha)',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: RashkarColors.ink)),
+                ],
+              ),
+              const Divider(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Location', style: TextStyle(color: RashkarColors.mutedInk, fontSize: 14)),
+                  Text('${farm.village != null ? "${farm.village}, " : ""}${farm.taluka}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: RashkarColors.ink)),
+                ],
+              ),
+              const Divider(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Irrigation', style: TextStyle(color: RashkarColors.mutedInk, fontSize: 14)),
+                  Text('${farm.irrigationType.toUpperCase()} (${farm.waterSource.toUpperCase()})',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: RashkarColors.ink)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text(
+                    'More Farm Details (Coordinates & Boundary)',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RashkarColors.forest),
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4, bottom: 8),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Coordinates', style: TextStyle(color: RashkarColors.mutedInk, fontSize: 12.5)),
+                              Text('${farm.centroid.latitude.toStringAsFixed(4)}, ${farm.centroid.longitude.toStringAsFixed(4)}',
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text('Boundary Points', style: TextStyle(color: RashkarColors.mutedInk, fontSize: 12.5)),
+                              Text('${farm.polygonPoints.length} vertices',
+                                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
         SatelliteVegetationSummaryCard(farmId: farm.id),
@@ -2283,16 +2324,16 @@ class FarmDetailScreen extends StatelessWidget {
         RashkarHeroBanner(
           eyebrow: '${farm.taluka}, ${farm.district}',
           title: farm.name,
-          subtitle: '${farm.areaHectares.toStringAsFixed(2)} ha (${farm.areaAcres.toStringAsFixed(2)} acres) · GeoJSON Verified Plot',
-          topRight: RashkarSeverityBadge.marigold('${farm.areaHectares.toStringAsFixed(2)} ha'),
+          subtitle: '${farm.areaAcres.toStringAsFixed(1)} acres · ${farm.irrigationType.toUpperCase()}',
+          topRight: RashkarSeverityBadge.marigold('${farm.areaAcres.toStringAsFixed(1)} ac'),
           footerChildren: [
             ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
                 backgroundColor: RashkarColors.marigold,
                 foregroundColor: RashkarColors.ink,
               ),
-              icon: const Icon(Icons.dashboard_customize_rounded, size: 20),
-              label: const Text('View Unified Farm Health Dashboard'),
+              icon: const Icon(Icons.favorite_outline, size: 18),
+              label: const Text('Check Farm Health'),
               onPressed: () {
                 FarmRepository.instance.selectedFarmId = farm.id;
                 context.push(RoutePaths.farmHealthDashboardPath(farm.id));
@@ -2309,39 +2350,48 @@ class FarmDetailScreen extends StatelessWidget {
           runSpacing: 12,
           children: [
             _FarmModuleTile(
-              icon: Icons.psychology_outlined,
-              title: 'Run Crop Suitability Advisory',
-              subtitle: 'Rule-backed seasonal crop checks & AI explanation',
-              onTap: () {
-                FarmRepository.instance.selectedFarmId = farm.id;
-                appRouter.go(RoutePaths.advisory);
-              },
-            ),
-            _FarmModuleTile(
               icon: Icons.science_outlined,
-              title: 'Analyse Soil Profile for this Boundary',
-              subtitle: 'ISRIC SoilGrids + Laboratory OCR ground truth',
+              title: 'Check My Soil',
+              subtitle: 'Soil nutrients, pH & laboratory test reports',
               onTap: () {
                 FarmRepository.instance.selectedFarmId = farm.id;
                 context.push(RoutePaths.soilDetailPath(farm.id));
               },
             ),
             _FarmModuleTile(
-              icon: Icons.cloud_sync_outlined,
-              title: 'Weather & Climate Intelligence',
-              subtitle: 'Live forecast, hourly heat zones & NASA POWER',
+              icon: Icons.cloud_outlined,
+              title: 'Check Weather',
+              subtitle: 'Daily forecast, heat hours & seasonal rain',
               onTap: () {
                 FarmRepository.instance.selectedFarmId = farm.id;
                 context.push(RoutePaths.weatherDetailPath(farm.id));
               },
             ),
             _FarmModuleTile(
+              icon: Icons.favorite_border_rounded,
+              title: 'Check Farm Health',
+              subtitle: 'Complete evidence across soil, water & weather',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                context.push(RoutePaths.farmHealthDashboardPath(farm.id));
+              },
+            ),
+            _FarmModuleTile(
               icon: Icons.water_drop_outlined,
-              title: 'Irrigation Water Quality & Sources',
-              subtitle: 'SAR / RSC indices & BIS irrigation rules',
+              title: 'Check Water',
+              subtitle: 'Water quality, salinity & irrigation suitability',
               onTap: () {
                 FarmRepository.instance.selectedFarmId = farm.id;
                 context.push(RoutePaths.farmWaterPath(farm.id));
+              },
+            ),
+            _FarmModuleTile(
+              icon: Icons.psychology_outlined,
+              title: 'See Crop Advice',
+              subtitle: 'Recommended crops and seasonal guidance',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                appRouter.go(RoutePaths.advisory);
               },
             ),
             _FarmModuleTile(
@@ -3134,7 +3184,7 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
                         Text(
                           _isLabConfirmed
                               ? 'Your soil has verified laboratory test results on record for tailored fertilizer and crop planning.'
-                              : 'We have estimated information about your soil, but a laboratory test is needed before giving nutrient-specific fertilizer guidance.',
+                              : 'We have estimated soil information, but a laboratory test is needed to understand available nutrients.',
                           style: const TextStyle(fontSize: 13.5, color: RashkarColors.ink, height: 1.4),
                         ),
                         const SizedBox(height: 14),
@@ -3185,7 +3235,7 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
                         icon: Icons.eco_outlined,
                         label: 'Organic Carbon',
                         value: '${socPercent.toStringAsFixed(2)}%',
-                        status: '${socPercent >= 1.5 ? "Good organic matter" : (socPercent >= 0.75 ? "Medium organic matter" : "Low organic matter")} — ${isLabSoc ? "lab verified" : "estimated"}',
+                        status: '${socPercent >= 1.5 ? "Good organic matter" : (socPercent >= 0.75 ? "Medium organic matter" : "Low organic matter")} — ${isLabSoc ? "lab verified" : "estimated (${rawSoc.toStringAsFixed(1)} g/kg)"}',
                         accentColor: const Color(0xFF5D4037),
                       ),
                       _buildGlanceCard(
@@ -5713,6 +5763,12 @@ class _CropCatalogScreenState extends State<CropCatalogScreen> {
         maxWidth: 1240,
         child: Column(
           children: [
+            const RashkarHeroBanner(
+              eyebrow: 'CROPS & GROWING REQUIREMENTS',
+              title: 'Crop Guide',
+              subtitle: 'General crop profiles and growing requirements. For recommendations tailored to your farm soil and weather, use Check My Crop or Ask Rashkar.',
+            ),
+            const SizedBox(height: 14),
             if (_isLoading)
               const LinearProgressIndicator(
                 color: RashkarColors.forest,

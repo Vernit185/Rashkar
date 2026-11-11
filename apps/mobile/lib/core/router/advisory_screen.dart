@@ -721,17 +721,17 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
   List<String> get _bilingualPromptSuggestions {
     if (_selectedLanguage == 'mr') {
       return [
-        'उन्हाळ्यात उसाला पाणी कधी द्यावे?',
-        'काळी जमीन हरभऱ्यासाठी योग्य आहे का?',
-        'सोयाबीनवर पिवळे डाग पडले तर काय करावे?',
+        'मी कोणते पीक घ्यावे?',
+        'आज पिकाला पाणी द्यावे का?',
+        'उष्णतेपासून पिकाचे संरक्षण कसे करावे?',
         'दुपारच्या उन्हात शेतात काम करणे सुरक्षित आहे का?',
       ];
     } else {
       return [
-        'When should I irrigate sugarcane in summer?',
-        'Can I grow chickpea in heavy clay soil?',
-        'What should I do for yellow spots on soybean?',
-        'Is it safe to work in afternoon heat today?',
+        'Which crop should I grow?',
+        'Should I water my crop today?',
+        'How can I protect my crop from heat?',
+        'Is it safe to work in outdoor heat today?',
       ];
     }
   }
@@ -753,27 +753,22 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'CropNet AI',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    letterSpacing: 0.2,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                _buildLlmStatusPill(isMr),
-              ],
+            Text(
+              isMr ? 'राशकर विचारा (CropNet AI)' : 'CropNet AI · Ask Rashkar',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 17,
+                color: Colors.white,
+              ),
             ),
             Text(
               isMr
                   ? 'शासकीय व संशोधन संस्था प्रमाणित कृषी सल्ला'
-                  : 'Grounded in Deterministic ICAR & MPKV Decision Engine',
+                  : 'Deterministic ICAR & MPKV Decision Engine',
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: RashkarColors.forestTextMuted),
             ),
           ],
@@ -809,6 +804,7 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
               ),
             ),
 
+          _buildLlmStatusPill(isMr),
           // Bilingual Toggle (EN / मराठी)
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),

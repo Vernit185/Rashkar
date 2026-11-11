@@ -46,12 +46,20 @@ void main() {
 
   group('Route Paths & Name Constants Verification', () {
     test('Mandatory route paths are correctly structured', () {
+      expect(RoutePaths.splash, '/splash');
+      expect(RoutePaths.onboarding, '/onboarding');
       expect(RoutePaths.home, '/');
       expect(RoutePaths.soilTesting, '/soil-testing');
       expect(RoutePaths.cropRecommendation, '/crop-recommendation');
       expect(RoutePaths.weather, '/weather');
       expect(RoutePaths.advisory, '/advisory');
       expect(RoutePaths.history, '/history');
+      expect(RoutePaths.schemes, '/schemes');
+      expect(RoutePaths.cropDoctor, '/crop-doctor');
+      expect(RoutePaths.risk, '/risk');
+      expect(RoutePaths.riskWorkerHeat, '/risk/worker-heat');
+      expect(RoutePaths.riskCropHeat, '/risk/crop-heat');
+      expect(RoutePaths.extraIncome, '/extra-income');
     });
 
     test('Detail and sub-route parameter paths helper methods work as expected', () {
@@ -63,6 +71,8 @@ void main() {
 
     test('Route names are distinctly defined', () {
       final names = [
+        RouteNames.splash,
+        RouteNames.onboarding,
         RouteNames.home,
         RouteNames.soilTesting,
         RouteNames.cropRecommendation,
@@ -75,6 +85,12 @@ void main() {
         RouteNames.weatherDetail,
         RouteNames.cropDetail,
         RouteNames.about,
+        RouteNames.schemes,
+        RouteNames.cropDoctor,
+        RouteNames.risk,
+        RouteNames.riskWorkerHeat,
+        RouteNames.riskCropHeat,
+        RouteNames.extraIncome,
       ];
       final uniqueNames = names.toSet();
       expect(uniqueNames.length, names.length);
@@ -133,8 +149,8 @@ void main() {
       await tester.pumpWidget(CropNetApp(routerConfig: router));
       await tester.pumpAndSettle();
 
-      expect(find.text('My Registered Farms'), findsOneWidget);
-      expect(find.text('Baramati Pilot Plot'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
+      expect(find.textContaining('Baramati Pilot Plot'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('Deep links directly to /soil-testing without crashing', (tester) async {
@@ -251,7 +267,7 @@ void main() {
       await tester.tap(find.text('Return to Dashboard'));
       await tester.pumpAndSettle();
 
-      expect(find.text('My Registered Farms'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
     });
 
     testWidgets('Gracefully handles missing farm ID in subroute /soil-testing/non-existent-farm', (tester) async {
@@ -273,15 +289,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // Initially at Home
-      expect(find.text('My Registered Farms'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
 
       // Switch to Soil branch
       await tester.tap(find.text('Soil').first);
       await tester.pumpAndSettle();
       expect(find.text('Soil Intelligence'), findsOneWidget);
 
-      // Switch to Advisory branch
-      await tester.tap(find.text('Advisory').first);
+      // Switch to Ask Rashkar (Advisory) branch
+      await tester.tap(find.text('Ask Rashkar').first);
       await tester.pumpAndSettle();
       expect(find.byType(AdvisoryScreen), findsOneWidget);
 
@@ -290,12 +306,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Assessment History'), findsOneWidget);
 
-      // Switch back to Farms branch
-      await tester.tap(find.text('Farms').first);
+      // Switch back to Home branch
+      await tester.tap(find.text('Home').first);
       await tester.pumpAndSettle();
-      expect(find.text('My Registered Farms'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
 
       // Advance fake clock past ApiClient timeout so no pending timers remain
+      await tester.pump(const Duration(seconds: 31));
+    });
+
+    testWidgets('Deep links to /crop-doctor, /risk, /risk/crop-heat and /extra-income', (tester) async {
+      setDesktopViewport(tester);
+
+      final cropDocRouter = createCropNetRouter(initialLocation: RoutePaths.cropDoctor);
+      await tester.pumpWidget(CropNetApp(routerConfig: cropDocRouter));
+      await tester.pump();
+      expect(find.text('Crop Doctor'), findsAtLeastNWidgets(1));
+      await tester.pump(const Duration(seconds: 31));
+
+      final riskRouter = createCropNetRouter(initialLocation: RoutePaths.riskCropHeat);
+      await tester.pumpWidget(CropNetApp(routerConfig: riskRouter));
+      await tester.pump();
+      expect(find.text('Heat Risk Check'), findsOneWidget);
+      expect(find.text('Worker Heat Risk'), findsAtLeastNWidgets(1));
+      expect(find.text('Crop Heat Risk'), findsAtLeastNWidgets(1));
+      await tester.pump(const Duration(seconds: 31));
+
+      final incomeRouter = createCropNetRouter(initialLocation: RoutePaths.extraIncome);
+      await tester.pumpWidget(CropNetApp(routerConfig: incomeRouter));
+      await tester.pump();
+      expect(find.text('Earn More'), findsAtLeastNWidgets(1));
+      await tester.pump(const Duration(seconds: 31));
+
+      final splashRouter = createCropNetRouter(initialLocation: RoutePaths.splash);
+      await tester.pumpWidget(CropNetApp(routerConfig: splashRouter));
+      await tester.pump();
+      expect(find.text('RASHKAR'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 31));
+
+      final onboardingRouter = createCropNetRouter(initialLocation: RoutePaths.onboarding);
+      await tester.pumpWidget(CropNetApp(routerConfig: onboardingRouter));
+      await tester.pump();
+      expect(find.text('What is your name?'), findsOneWidget);
+      expect(find.text('Step 1 of 6'), findsOneWidget);
       await tester.pump(const Duration(seconds: 31));
     });
   });

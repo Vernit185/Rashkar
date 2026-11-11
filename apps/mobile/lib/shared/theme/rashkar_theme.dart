@@ -1,105 +1,209 @@
 import 'package:flutter/material.dart';
-import 'package:cropnet_mobile/shared/theme/rashkar_tokens.dart';
 
-/// RASHKAR Design Language - Material 3 Theme Integration
-abstract final class RashkarTheme {
-  static ThemeData get theme {
-    const colorScheme = ColorScheme(
+import 'rashkar_colors.dart';
+
+/// Unified Material 3 theme implementing the Rashkar Figma Make visual system
+/// across CropNet Web and Mobile screens.
+class RashkarTheme {
+  const RashkarTheme._();
+
+  static const List<String> fontFallbackStack = [
+    'Inter',
+    'Plus Jakarta Sans',
+    'Segoe UI',
+    'Roboto',
+    'sans-serif',
+  ];
+
+  static ThemeData light() {
+    final colorScheme = ColorScheme(
       brightness: Brightness.light,
-      primary: RashkarColors.forest,
-      onPrimary: RashkarColors.white,
-      primaryContainer: RashkarColors.leafSoft,
-      onPrimaryContainer: RashkarColors.forestDark,
-      secondary: RashkarColors.leaf,
-      onSecondary: RashkarColors.white,
-      secondaryContainer: RashkarColors.leafSoft,
-      onSecondaryContainer: RashkarColors.forest,
-      tertiary: RashkarColors.amber,
-      onTertiary: RashkarColors.ink,
-      error: RashkarColors.risk,
-      onError: RashkarColors.white,
-      errorContainer: RashkarColors.riskSoft,
-      onErrorContainer: RashkarColors.riskText,
-      surface: RashkarColors.white,
+      primary: RashkarColors.forestTint,
+      onPrimary: Colors.white,
+      primaryContainer: RashkarColors.mintBg,
+      onPrimaryContainer: RashkarColors.forest,
+      secondary: RashkarColors.marigold,
+      onSecondary: Colors.white,
+      secondaryContainer: RashkarColors.marigoldTint,
+      onSecondaryContainer: RashkarColors.marigoldInk,
+      tertiary: RashkarColors.highBar,
+      onTertiary: Colors.white,
+      tertiaryContainer: RashkarColors.highBg,
+      onTertiaryContainer: RashkarColors.highFg,
+      error: RashkarColors.extremeBar,
+      onError: Colors.white,
+      errorContainer: RashkarColors.extremeBg,
+      onErrorContainer: RashkarColors.extremeFg,
+      surface: RashkarColors.surface,
       onSurface: RashkarColors.ink,
-      surfaceContainerHighest: RashkarColors.sand,
-      outline: RashkarColors.line,
-      outlineVariant: RashkarColors.line,
+      surfaceContainerLowest: RashkarColors.surface,
+      surfaceContainerLow: RashkarColors.canvas,
+      surfaceContainer: RashkarColors.surfaceSubtle,
+      surfaceContainerHigh: RashkarColors.deskBg,
+      onSurfaceVariant: RashkarColors.mutedInk,
+      outline: RashkarColors.border,
+      outlineVariant: RashkarColors.borderStrong,
+      shadow: Colors.black.withValues(alpha: 0.05),
+    );
+
+    const baseTextTheme = TextTheme(
+      displaySmall: TextStyle(
+        fontSize: 34,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
+        color: RashkarColors.ink,
+        height: 1.1,
+      ),
+      headlineMedium: TextStyle(
+        fontSize: 26,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.4,
+        color: RashkarColors.ink,
+        height: 1.2,
+      ),
+      headlineSmall: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.3,
+        color: RashkarColors.ink,
+        height: 1.25,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 19,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+        color: RashkarColors.ink,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.1,
+        color: RashkarColors.ink,
+      ),
+      titleSmall: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: RashkarColors.ink,
+      ),
+      bodyLarge: TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+        color: RashkarColors.ink,
+        height: 1.45,
+      ),
+      bodyMedium: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: RashkarColors.ink,
+        height: 1.45,
+      ),
+      bodySmall: TextStyle(
+        fontSize: 12.5,
+        fontWeight: FontWeight.w400,
+        color: RashkarColors.mutedInk,
+        height: 1.4,
+      ),
+      labelLarge: TextStyle(
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.1,
+        color: RashkarColors.ink,
+      ),
+      labelMedium: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.1,
+        color: RashkarColors.mutedInk,
+      ),
+      labelSmall: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.4,
+        color: RashkarColors.mutedInk,
+      ),
     );
 
     return ThemeData(
       useMaterial3: true,
-      fontFamily: RashkarTypography.primaryFont,
-      fontFamilyFallback: RashkarTypography.fontFallbacks,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: RashkarColors.cream,
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(fontSize: 16, height: 1.5, color: RashkarColors.ink),
-        bodyMedium: TextStyle(fontSize: 16, height: 1.45, color: RashkarColors.ink),
-        bodySmall: TextStyle(fontSize: 13, height: 1.4, color: RashkarColors.muted),
-      ),
-      dividerColor: RashkarColors.line,
-      dividerTheme: const DividerThemeData(
-        color: RashkarColors.line,
-        thickness: 1.0,
-        space: 1.0,
+      scaffoldBackgroundColor: RashkarColors.canvas,
+      canvasColor: RashkarColors.canvas,
+      textTheme: baseTextTheme.apply(
+        fontFamilyFallback: fontFallbackStack,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: RashkarColors.forest,
-        foregroundColor: RashkarColors.white,
+        backgroundColor: RashkarColors.surface,
+        foregroundColor: RashkarColors.ink,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          fontFamily: RashkarTypography.primaryFont,
-          fontSize: 19.0,
+          fontSize: 20,
           fontWeight: FontWeight.w700,
-          color: RashkarColors.white,
+          letterSpacing: -0.2,
         ),
       ),
-      cardTheme: const CardThemeData(
-        color: RashkarColors.white,
+      cardTheme: CardThemeData(
+        color: RashkarColors.surface,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: RashkarRadii.cardBorderRadius,
-          side: BorderSide(color: RashkarColors.line, width: 1.0),
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: RashkarColors.border, width: 1),
         ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: RashkarColors.border,
+        thickness: 1,
+        space: 1,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: RashkarColors.forest,
-          foregroundColor: RashkarColors.white,
-          minimumSize: const Size(double.infinity, RashkarSpacing.primaryButtonHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+          backgroundColor: RashkarColors.forestTint,
+          foregroundColor: Colors.white,
           elevation: 0,
-          shape: const RoundedRectangleBorder(
-            borderRadius: RashkarRadii.buttonBorderRadius,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size(0, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
           ),
           textStyle: const TextStyle(
-            fontFamily: RashkarTypography.primaryFont,
-            fontSize: 16.0,
-            fontWeight: FontWeight.w600,
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: RashkarColors.forestTint,
+          foregroundColor: Colors.white,
+          minimumSize: const Size(0, 50),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          backgroundColor: RashkarColors.white,
-          foregroundColor: RashkarColors.forest,
-          minimumSize: const Size(double.infinity, RashkarSpacing.primaryButtonHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
-          elevation: 0,
-          side: const BorderSide(
-            color: RashkarColors.line,
-            width: 1.0,
-          ),
-          shape: const RoundedRectangleBorder(
-            borderRadius: RashkarRadii.buttonBorderRadius,
+          backgroundColor: RashkarColors.surface,
+          foregroundColor: RashkarColors.ink,
+          side: const BorderSide(color: RashkarColors.borderStrong, width: 1.2),
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
           ),
           textStyle: const TextStyle(
-            fontFamily: RashkarTypography.primaryFont,
-            fontSize: 16.0,
+            fontSize: 14.5,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -108,57 +212,95 @@ abstract final class RashkarTheme {
         style: TextButton.styleFrom(
           foregroundColor: RashkarColors.forest,
           textStyle: const TextStyle(
-            fontFamily: RashkarTypography.primaryFont,
-            fontSize: 15.0,
-            fontWeight: FontWeight.w600,
+            fontSize: 14.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
+      inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: RashkarColors.white,
-        contentPadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+        fillColor: RashkarColors.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: RashkarRadii.inputBorderRadius,
-          borderSide: BorderSide(color: RashkarColors.line, width: 1.0),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: RashkarColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: RashkarRadii.inputBorderRadius,
-          borderSide: BorderSide(color: RashkarColors.line, width: 1.0),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: RashkarColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: RashkarRadii.inputBorderRadius,
-          borderSide: BorderSide(color: RashkarColors.leaf, width: 2.0),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: RashkarColors.forestTint, width: 2.0),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: RashkarRadii.inputBorderRadius,
-          borderSide: BorderSide(color: RashkarColors.risk, width: 1.5),
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: RashkarColors.extremeBar),
         ),
-        hintStyle: TextStyle(
-          color: RashkarColors.muted,
-          fontSize: 15.0,
+        labelStyle: const TextStyle(color: RashkarColors.mutedInk, fontSize: 14.5),
+        hintStyle: const TextStyle(color: RashkarColors.subtleInk, fontSize: 14.5),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: RashkarColors.surface,
+        selectedColor: RashkarColors.mintBg,
+        secondarySelectedColor: RashkarColors.mintBg,
+        checkmarkColor: RashkarColors.forest,
+        disabledColor: RashkarColors.surfaceSubtle,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        side: const BorderSide(color: RashkarColors.border),
+        shape: const StadiumBorder(),
+        labelStyle: WidgetStateTextStyle.resolveWith((states) {
+          final isSelected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 12.5,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected ? RashkarColors.forest : RashkarColors.ink,
+          );
+        }),
+        secondaryLabelStyle: const TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: RashkarColors.forest,
         ),
       ),
-      chipTheme: const ChipThemeData(
-        backgroundColor: RashkarColors.sand,
-        selectedColor: RashkarColors.forest,
-        secondarySelectedColor: RashkarColors.forest,
-        disabledColor: RashkarColors.sand,
-        labelStyle: TextStyle(
-          fontFamily: RashkarTypography.primaryFont,
-          fontSize: 13.0,
-          fontWeight: FontWeight.w500,
-          color: RashkarColors.ink,
-        ),
-        secondaryLabelStyle: TextStyle(
-          fontFamily: RashkarTypography.primaryFont,
-          fontSize: 13.0,
-          fontWeight: FontWeight.w600,
-          color: RashkarColors.white,
-        ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: RashkarColors.surface,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: RashkarColors.mintBg,
+        height: 68,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? RashkarColors.forest : RashkarColors.mutedInk,
+            size: 22,
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? RashkarColors.forest : RashkarColors.mutedInk,
+          );
+        }),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: RashkarColors.forest,
+        contentTextStyle: const TextStyle(color: Colors.white, fontSize: 13.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        behavior: SnackBarBehavior.floating,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: RashkarColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: RashkarColors.canvas,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: RashkarRadii.pillBorderRadius,
-          side: BorderSide(color: Colors.transparent),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
     );

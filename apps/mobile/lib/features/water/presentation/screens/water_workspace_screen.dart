@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../../models/water_models.dart';
 import '../../data/water_repository.dart';
 
@@ -287,8 +289,6 @@ class _WaterWorkspaceScreenState extends State<WaterWorkspaceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.farmName} — Water Intelligence'),
-        backgroundColor: const Color(0xFF1B5E20),
-        foregroundColor: Colors.white,
         actions: [
           IconButton(
             tooltip: 'Refresh',
@@ -306,7 +306,7 @@ class _WaterWorkspaceScreenState extends State<WaterWorkspaceScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const Icon(Icons.error_outline, size: 48, color: RashkarColors.extremeFg),
                         const SizedBox(height: 12),
                         Text(_errorMessage!, textAlign: TextAlign.center),
                         const SizedBox(height: 16),
@@ -326,42 +326,43 @@ class _WaterWorkspaceScreenState extends State<WaterWorkspaceScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Irrigation Water Sources',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Manage on-farm borewells, canals, ponds and tracked availability.',
-                                  style: TextStyle(color: Colors.black54),
-                                ),
-                              ],
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Irrigation Water Sources',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          color: RashkarColors.ink,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Manage on-farm borewells, canals, ponds and tracked availability.',
+                                    style: TextStyle(color: RashkarColors.mutedInk),
+                                  ),
+                                ],
+                              ),
                             ),
+                            const SizedBox(width: 12),
                             FilledButton.icon(
                               onPressed: _showAddSourceDialog,
                               icon: const Icon(Icons.add),
                               label: const Text('Add Source'),
                               style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF2E7D32),
+                                backgroundColor: RashkarColors.forest,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         if (_sources.isEmpty)
-                          Card(
-                            elevation: 0,
-                            color: Colors.grey.shade100,
-                            child: const Padding(
-                              padding: EdgeInsets.all(24.0),
-                              child: Center(
-                                child: Text('No water sources recorded yet. Click "Add Source" to register one.'),
-                              ),
+                          const RashkarCard(
+                            backgroundColor: RashkarColors.surfaceSubtle,
+                            padding: EdgeInsets.all(24),
+                            child: Center(
+                              child: Text('No water sources recorded yet. Click "Add Source" to register one.'),
                             ),
                           )
                         else

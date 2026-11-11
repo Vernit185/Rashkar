@@ -3,12 +3,15 @@ import 'package:go_router/go_router.dart';
 import 'package:cropnet_mobile/core/router/farm_state.dart';
 import 'package:cropnet_mobile/core/router/route_paths.dart';
 import 'package:cropnet_mobile/features/history/assessment_history_repository.dart';
+import 'package:cropnet_mobile/shared/theme/rashkar_colors.dart';
+import 'package:cropnet_mobile/shared/widgets/centered_page_container.dart';
+import 'package:cropnet_mobile/shared/widgets/rashkar_ui.dart';
+import 'package:cropnet_mobile/shared/widgets/responsive_grid.dart';
 
 export 'package:cropnet_mobile/features/history/assessment_history_repository.dart'
     show AssessmentHistoryRecord, AssessmentHistoryRepository;
 
-/// Soil & Crop Assessment History Screen
-/// Displays chronological record of digital soil profiling, weather intelligence, and crop evaluations.
+/// Soil & Crop Assessment History Screen styled with the Rashkar Verification & Claims language.
 class AssessmentHistoryScreen extends StatefulWidget {
   const AssessmentHistoryScreen({super.key});
 
@@ -33,137 +36,137 @@ class _AssessmentHistoryScreenState extends State<AssessmentHistoryScreen> {
         }).toList();
 
         return Scaffold(
+          backgroundColor: RashkarColors.canvas,
           appBar: AppBar(
-            title: const Text('Assessment History', style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: const Color(0xFF1B5E20),
-            foregroundColor: Colors.white,
+            title: const Text('Assessment History'),
           ),
-          body: Column(
-            children: [
-              // Metrics Header
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                color: const Color(0xFFF1F8E9),
-                child: SingleChildScrollView(
+          body: CenteredPageContainer(
+            maxWidth: 1120,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const RashkarHeroBanner(
+                  eyebrow: 'SESSION RECORDS',
+                  title: 'Past Farm Checks',
+                  subtitle: 'Past soil, crop, and farm checks recorded during this session.',
+                ),
+                const SizedBox(height: 14),
+                ResponsiveGrid.metrics(
+                  mobileColumns: 2,
+                  tabletColumns: 4,
+                  desktopColumns: 4,
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    RashkarMetricTile(
+                      icon: Icons.analytics_outlined,
+                      label: 'Total Runs',
+                      value: '${allRecords.length}',
+                    ),
+                    RashkarMetricTile(
+                      icon: Icons.terrain_outlined,
+                      label: 'Soil Profiles',
+                      value: '${allRecords.where((r) => r.assessmentType.contains("Soil")).length}',
+                    ),
+                    RashkarMetricTile(
+                      icon: Icons.grass_outlined,
+                      label: 'Crop Feasibility',
+                      value: '${allRecords.where((r) => r.assessmentType.contains("Crop")).length}',
+                    ),
+                    RashkarMetricTile(
+                      icon: Icons.location_on_outlined,
+                      label: 'Regions',
+                      value: '${allRecords.map((r) => r.taluka).toSet().length}',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildMetricCard('Total Runs', '${allRecords.length}', Icons.analytics_outlined),
-                      const SizedBox(width: 20),
-                      _buildMetricCard(
-                        'Soil Profiles',
-                        '${allRecords.where((r) => r.assessmentType.contains("Soil")).length}',
-                        Icons.terrain_outlined,
-                      ),
-                      const SizedBox(width: 20),
-                      _buildMetricCard(
-                        'Crop Feasibility',
-                        '${allRecords.where((r) => r.assessmentType.contains("Crop")).length}',
-                        Icons.grass_outlined,
-                      ),
-                      const SizedBox(width: 20),
-                      _buildMetricCard(
-                        'Regions',
-                        '${allRecords.map((r) => r.taluka).toSet().length}',
-                        Icons.location_on_outlined,
-                      ),
-                    ],
+                    children: _filters.map((filter) {
+                      final isSelected = filter == _selectedFilter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(
+                            filter,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                              color: isSelected ? Colors.white : RashkarColors.ink,
+                            ),
+                          ),
+                          selected: isSelected,
+                          checkmarkColor: Colors.white,
+                          selectedColor: RashkarColors.ink,
+                          backgroundColor: RashkarColors.surface,
+                          onSelected: (val) {
+                            if (val) setState(() => _selectedFilter = filter);
+                          },
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
-              ),
-
-              // Filter Chips
-              SizedBox(
-                height: 48,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemCount: _filters.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (ctx, idx) {
-                    final filter = _filters[idx];
-                    final isSelected = filter == _selectedFilter;
-                    return ChoiceChip(
-                      label: Text(
-                        filter,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isSelected ? Colors.white : Colors.black87,
+                const SizedBox(height: 14),
+                Expanded(
+                  child: filtered.isEmpty
+                      ? Center(
+                          child: RashkarCard(
+                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 36),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: const BoxDecoration(
+                                    color: RashkarColors.mintBg,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.history_rounded, size: 30, color: RashkarColors.forest),
+                                ),
+                                const SizedBox(height: 14),
+                                const Text(
+                                  'No assessment history yet.',
+                                  style: TextStyle(
+                                    color: RashkarColors.ink,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Assessments will be automatically recorded here when you run Soil Intelligence extractions, Crop Feasibility evaluations, or AI Advisory dialogues.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: RashkarColors.mutedInk, fontSize: 13),
+                                ),
+                                const SizedBox(height: 18),
+                                ElevatedButton.icon(
+                                  onPressed: () => context.go(RoutePaths.soilTesting),
+                                  icon: const Icon(Icons.science_outlined),
+                                  label: const Text('Analyse Soil Profile Now'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: filtered.length,
+                          itemBuilder: (ctx, idx) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildRecordCard(filtered[idx]),
+                            );
+                          },
                         ),
-                      ),
-                      selected: isSelected,
-                      selectedColor: const Color(0xFF1B5E20),
-                      backgroundColor: Colors.white,
-                      onSelected: (val) {
-                        if (val) setState(() => _selectedFilter = filter);
-                      },
-                    );
-                  },
                 ),
-              ),
-
-              const Divider(height: 1),
-
-              // List of Records
-              Expanded(
-                child: filtered.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.history, size: 54, color: Colors.grey),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'No assessment history yet.',
-                              style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 6),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 32.0),
-                              child: Text(
-                                'Assessments will be automatically recorded here when you run Soil Intelligence extractions, Crop Feasibility evaluations, or AI Advisory dialogues.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.black54, fontSize: 13),
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF1B5E20),
-                                foregroundColor: Colors.white,
-                              ),
-                              onPressed: () => context.go(RoutePaths.soilTesting),
-                              icon: const Icon(Icons.science),
-                              label: const Text('Analyse Soil Profile Now'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: filtered.length,
-                        itemBuilder: (ctx, idx) {
-                          final record = filtered[idx];
-                          return _buildRecordCard(record);
-                        },
-                      ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
-    );
-  }
-
-  Widget _buildMetricCard(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, color: const Color(0xFF1B5E20), size: 22),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1B5E20))),
-        Text(label, style: const TextStyle(fontSize: 11, color: Colors.black54)),
-      ],
     );
   }
 
@@ -171,149 +174,112 @@ class _AssessmentHistoryScreenState extends State<AssessmentHistoryScreen> {
     final farmExists = FarmRepository.instance.getFarmById(record.farmId) != null;
     final isSoil = record.assessmentType.contains('Soil');
 
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: 14),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isSoil ? const Color(0xFFE8F5E9) : const Color(0xFFE3F2FD),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    record.assessmentType,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isSoil ? const Color(0xFF1B5E20) : const Color(0xFF0277BD),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _formatDate(record.date),
-                  style: const TextStyle(fontSize: 11, color: Colors.black54),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${record.farmName} (${record.taluka})',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              record.summary,
-              style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.3),
-            ),
-            const SizedBox(height: 10),
-
-            // Key Metrics Grid
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFAFA),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade200),
+    return RashkarCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              isSoil
+                  ? RashkarSeverityBadge.success(record.assessmentType, icon: Icons.terrain_outlined, compact: true)
+                  : RashkarSeverityBadge.info(record.assessmentType, icon: Icons.grass_outlined, compact: true),
+              const Spacer(),
+              Text(
+                _formatDate(record.date),
+                style: const TextStyle(fontSize: 12, color: RashkarColors.mutedInk, fontWeight: FontWeight.w600),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: record.keyMetrics.entries.map((e) {
-                  return Column(
-                    children: [
-                      Text(e.key, style: const TextStyle(fontSize: 10, color: Colors.black54)),
-                      const SizedBox(height: 2),
-                      Text(
-                        e.value,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                          color: Color(0xFF1B5E20),
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${record.farmName} (${record.taluka})',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: RashkarColors.ink),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            record.summary,
+            style: const TextStyle(fontSize: 13, color: RashkarColors.ink, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: RashkarColors.canvas,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: RashkarColors.border),
             ),
-
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.verified, size: 14, color: Color(0xFF2E7D32)),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Provenance: ${record.provenance}',
-                    style: const TextStyle(fontSize: 10, color: Colors.black54, fontStyle: FontStyle.italic),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
+            child: Wrap(
+              spacing: 18,
               runSpacing: 8,
-              alignment: WrapAlignment.end,
-              children: [
-                // Button to View Details
-                if (farmExists && isSoil)
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(RoutePaths.soilDetailPath(record.farmId)),
-                    icon: const Icon(Icons.terrain, size: 16),
-                    label: const Text('View Soil Report', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1B5E20),
+              children: record.keyMetrics.entries.map((e) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(e.key, style: const TextStyle(fontSize: 11, color: RashkarColors.mutedInk)),
+                    const SizedBox(height: 2),
+                    Text(
+                      e.value,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: RashkarColors.forest,
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
                     ),
-                  )
-                else if (record.cropId != null)
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(RoutePaths.cropDetailPath(record.cropId!)),
-                    icon: const Icon(Icons.grass, size: 16),
-                    label: Text(
-                      record.cropName != null ? 'View ${record.cropName}' : 'View Crop Guide',
-                      style: const TextStyle(fontSize: 12),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1B5E20),
-                    ),
-                  )
-                else if (farmExists)
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(RoutePaths.farmDetailPath(record.farmId)),
-                    icon: const Icon(Icons.pin_drop, size: 16),
-                    label: const Text('View Farm', style: TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1B5E20),
-                    ),
-                  ),
-
-                // Button to jump directly to advisory with this farm selected
-                ElevatedButton.icon(
-                  onPressed: () {
-                    FarmRepository.instance.selectedFarmId = record.farmId;
-                    context.go(RoutePaths.advisory);
-                  },
-                  icon: const Icon(Icons.psychology, size: 16),
-                  label: const Text('Jump to Advisory', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B5E20),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
+                  ],
+                );
+              }).toList(),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.verified_outlined, size: 14, color: RashkarColors.forest),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  'Provenance: ${record.provenance}',
+                  style: const TextStyle(fontSize: 11.5, color: RashkarColors.mutedInk),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (farmExists && isSoil)
+                OutlinedButton.icon(
+                  onPressed: () => context.push(RoutePaths.soilDetailPath(record.farmId)),
+                  icon: const Icon(Icons.terrain_outlined, size: 16),
+                  label: const Text('View Soil Report'),
+                )
+              else if (record.cropId != null)
+                OutlinedButton.icon(
+                  onPressed: () => context.push(RoutePaths.cropDetailPath(record.cropId!)),
+                  icon: const Icon(Icons.grass_outlined, size: 16),
+                  label: Text(record.cropName != null ? 'View ${record.cropName}' : 'View Crop Guide'),
+                )
+              else if (farmExists)
+                OutlinedButton.icon(
+                  onPressed: () => context.push(RoutePaths.farmDetailPath(record.farmId)),
+                  icon: const Icon(Icons.pin_drop_outlined, size: 16),
+                  label: const Text('View Farm'),
+                ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  FarmRepository.instance.selectedFarmId = record.farmId;
+                  context.go(RoutePaths.advisory);
+                },
+                icon: const Icon(Icons.psychology_outlined, size: 16),
+                label: const Text('Jump to Advisory'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

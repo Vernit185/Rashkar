@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../core/utils/native_file_picker.dart';
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../state/soil_lab_notifier.dart';
 
 /// Validation result produced by [DocumentFileValidator].
@@ -484,56 +486,33 @@ class _SoilReportUploadScreenState extends State<SoilReportUploadScreen> {
 
   Widget _buildUploadDropzone() {
     final file = _selectedFile;
+    if (file == null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          RashkarUploadDropzone(
+            title: 'Upload Soil Test Document',
+            subtitle: 'Supports PDF, JPEG, or PNG up to 15 MB · Soil Health Card or accredited lab report',
+            icon: Icons.upload_file_rounded,
+            isBusy: _notifier.isUploading || _notifier.isProcessing,
+            onPrimaryTap: _pickFile,
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: _pickFile,
+            icon: const Icon(Icons.folder_open_outlined, size: 19),
+            label: const Text('Browse Document'),
+          ),
+        ],
+      );
+    }
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: file != null ? Colors.white : const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: file != null
-              ? (_clientValidationError == null ? const Color(0xFF2E7D32) : const Color(0xFFC62828))
-              : Colors.grey.shade400,
-          width: file != null ? 2.0 : 1.5,
-          strokeAlign: BorderSide.strokeAlignInside,
-        ),
-      ),
-      padding: const EdgeInsets.all(20.0),
-      child: file == null
-          ? Column(
-              children: [
-                Icon(
-                  Icons.cloud_upload_outlined,
-                  size: 48,
-                  color: Colors.green.shade700,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Upload Soil Test Document',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Supports PDF, JPEG, or PNG up to 15 MB.\nSelect your laboratory report or Soil Health Card directly from your device.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.black54, height: 1.3),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: _pickFile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  icon: const Icon(Icons.folder_open, size: 20),
-                  label: const Text('Browse Document'),
-                ),
-              ],
-            )
-          : Row(
-              children: [
+    return RashkarCard(
+      padding: const EdgeInsets.all(18),
+      borderColor: _clientValidationError == null ? RashkarColors.forest : RashkarColors.extremeBar,
+      borderWidth: 1.8,
+      child: Row(
+        children: [
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: file.isPdf ? const Color(0xFFFFEBEE) : const Color(0xFFE8F5E9),

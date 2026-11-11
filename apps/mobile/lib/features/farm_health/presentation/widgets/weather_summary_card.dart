@@ -26,7 +26,7 @@ class WeatherSummaryCard extends StatelessWidget {
     final clim = weather.climateNormals;
 
     return Card(
-      elevation: 0,
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -122,9 +122,16 @@ class WeatherSummaryCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F0DF), // RashkarColors.leafSoft
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE6E6DC), width: 1.0),
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFFE1F5FE),
+                      Color(0xFFE8F5E9),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: [

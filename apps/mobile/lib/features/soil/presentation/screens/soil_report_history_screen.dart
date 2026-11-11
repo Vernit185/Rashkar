@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/route_paths.dart';
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
 import '../../models/soil_lab_models.dart';
 import '../state/soil_lab_notifier.dart';
@@ -64,9 +65,6 @@ class _SoilReportHistoryScreenState extends State<SoilReportHistoryScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Soil Test Report History'),
-            backgroundColor: const Color(0xFF1B5E20),
-            foregroundColor: Colors.white,
-            elevation: 1,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () {
@@ -113,7 +111,7 @@ class _SoilReportHistoryScreenState extends State<SoilReportHistoryScreen> {
           ),
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () => context.go(RoutePaths.soilLabUploadPath(widget.farmId)),
-            backgroundColor: const Color(0xFF2E7D32),
+            backgroundColor: RashkarColors.forest,
             foregroundColor: Colors.white,
             icon: const Icon(Icons.add),
             label: const Text('Upload New Report'),

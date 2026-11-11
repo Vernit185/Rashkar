@@ -37,7 +37,7 @@ class SatelliteVegetationCard extends StatelessWidget {
     final state = satellite.availabilityState;
 
     return Card(
-      elevation: 0,
+      elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20.0),

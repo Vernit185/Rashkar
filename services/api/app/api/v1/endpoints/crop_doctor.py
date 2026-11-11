@@ -1,62 +1,50 @@
-"""Crop Doctor — image-based crop disease recognition endpoint."""
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
-from starlette.concurrency import run_in_threadpool
+import io
+from fastapi import APIRouter, File, UploadFile, HTTPException
+from typing import Optional
+from pydantic import BaseModel
+from PIL import Image
 
-from cropnet.services.api.app.services.crop_doctor import inference
-from cropnet.services.api.app.services.crop_doctor.advice import PREVENTION_TIPS
+from cropnet.services.api.app.services.crop_doctor.service import crop_doctor_service
 
 router = APIRouter()
 
-MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
 
-
-@router.get("/status")
-def crop_doctor_status():
-    """Report whether the optional vision model stack is loaded."""
-    return inference.model_status()
+class PredictionSampleRequest(BaseModel):
+    sample_name: str
 
 
 @router.post("/predict")
 async def predict_crop_disease(file: UploadFile = File(...)):
-    """Classify a crop leaf image and return the diagnosis plus preventive advice."""
-    content_type = (file.content_type or "").lower()
-    if content_type and not content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please upload a JPEG or PNG image of the affected crop leaf.",
-        )
-
-    content = await file.read(MAX_IMAGE_BYTES + 1)
-    if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded image is empty.")
-    if len(content) > MAX_IMAGE_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image exceeds the 10 MB limit.")
-
+    """Diagnoses crop disease from an uploaded leaf image."""
     try:
-        result = await run_in_threadpool(inference.get_prediction, content)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Crop Doctor could not process this image: {exc}",
+        image_bytes = await file.read()
+        if not image_bytes:
+            raise HTTPException(status_code=400, detail="Empty image uploaded.")
+        
+        result = crop_doctor_service.diagnose_image(
+            image_bytes=image_bytes,
+            filename=file.filename
         )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Diagnostic error: {str(e)}")
 
-    label = str(result["label"])
-    is_healthy = "healthy" in label.lower()
-    tips = PREVENTION_TIPS.get(label, ["Monitor the plant regularly and maintain field sanitation."])
-    crop, _, disease = label.partition("___")
 
-    return {
-        "filename": file.filename,
-        "crop": crop.replace("_", " ").strip() if crop else "Unknown",
-        "diagnosis": disease.replace("_", " ").strip() if disease else label,
-        "raw_label": label,
-        "confidence_percent": result["confidence"],
-        "is_healthy": is_healthy,
-        "actionable_advice": tips,
-        "disclaimer": (
-            "Automated image classification is a screening aid, not a laboratory diagnosis. "
-            "Confirm with a local agronomist before applying chemical treatments."
-        ),
-    }
+@router.post("/predict-sample")
+async def predict_sample(payload: PredictionSampleRequest):
+    """Diagnoses a sample disease scenario for testing and instant preview."""
+    try:
+        sample_name = payload.sample_name
+        # Create a valid synthetic sample image buffer
+        img = Image.new("RGB", (128, 128), color=(180, 100, 50) if "blight" in sample_name.lower() else (34, 139, 34))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        sample_bytes = buf.getvalue()
+
+        result = crop_doctor_service.diagnose_image(
+            image_bytes=sample_bytes,
+            filename=sample_name
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sample diagnosis error: {str(e)}")

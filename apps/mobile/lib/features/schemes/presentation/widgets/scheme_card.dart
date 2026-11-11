@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
-import '../../../../shared/theme/rashkar_tokens.dart';
-import '../../../../shared/theme/rashkar_components.dart';
+
+import '../../../../shared/theme/rashkar_colors.dart';
+import '../../../../shared/widgets/app_decorations.dart';
+import '../../../../shared/widgets/app_spacing.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../../models/scheme_models.dart';
 
+/// Colour and icon accent for each scheme category.
 Color schemeCategoryColor(String category) {
   switch (category) {
     case 'Crop Insurance':
       return const Color(0xFF00695C);
     case 'Financial Assistance':
-      return RashkarColors.forest;
+      return const Color(0xFF2E7D32);
     case 'Loans':
       return const Color(0xFF1565C0);
     case 'Irrigation':
@@ -20,11 +24,11 @@ Color schemeCategoryColor(String category) {
     case 'Seeds & Fertilizers':
       return const Color(0xFF6A1B9A);
     case 'Infrastructure':
-      return RashkarColors.orange;
+      return const Color(0xFFE65100);
     case 'State Schemes':
       return const Color(0xFFAD1457);
     default:
-      return RashkarColors.leaf;
+      return AppDecorations.leafGreen;
   }
 }
 
@@ -53,8 +57,7 @@ IconData schemeCategoryIcon(String category) {
   }
 }
 
-/// RASHKAR Design Language - Government Scheme Card (Spec 2 & Section 4 List Pattern)
-/// White, 1px line border, 18px radius, no shadow.
+/// A compact Government Scheme card shown in the dashboard grid.
 class SchemeCard extends StatelessWidget {
   final GovernmentScheme scheme;
   final VoidCallback onTap;
@@ -63,11 +66,10 @@ class SchemeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = scheme.isVerified ? RashkarStatusLevel.low : RashkarStatusLevel.moderate;
-
+    final accent = schemeCategoryColor(scheme.category);
     return RashkarCard(
+      padding: AppSpacing.paddingAllMD,
       onTap: onTap,
-      padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -75,83 +77,66 @@ class SchemeCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 44px Icon tile
               Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
-                  color: RashkarColors.leafSoft,
-                  borderRadius: RashkarRadii.iconTileBorderRadius,
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  schemeCategoryIcon(scheme.category),
-                  size: 22,
-                  color: RashkarColors.forest,
-                ),
+                child: Icon(schemeCategoryIcon(scheme.category), size: 20, color: accent),
               ),
-              const SizedBox(width: 12),
+              AppSpacing.horizontalSpaceSM,
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      scheme.schemeName,
-                      style: RashkarTypography.cardTitle,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${scheme.category} • ${scheme.governmentLevel}',
-                      style: RashkarTypography.meta,
-                    ),
-                  ],
+                child: Text(
+                  scheme.schemeName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: RashkarColors.ink,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              RashkarStatusPill(status: status),
+            ],
+          ),
+          AppSpacing.verticalSpaceSM,
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              _chip(scheme.category, accent),
+              _chip(scheme.governmentLevel, RashkarColors.mutedInk),
+              if (scheme.state != null && scheme.state!.isNotEmpty)
+                _chip(scheme.state!, RashkarColors.skyFg),
+              if (!scheme.isVerified) _chip('Not verified', RashkarColors.marigoldInk),
             ],
           ),
           if (scheme.description != null && scheme.description!.isNotEmpty) ...[
-            const SizedBox(height: 10),
+            AppSpacing.verticalSpaceSM,
             Text(
               scheme.description!,
-              style: RashkarTypography.body,
+              style: const TextStyle(fontSize: 13, color: RashkarColors.mutedInk, height: 1.35),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          const SizedBox(height: 12),
-          // Progress bar / Meta indicators
-          Row(
-            children: [
-              if (scheme.state != null && scheme.state!.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-                  margin: const EdgeInsets.only(right: 6.0),
-                  decoration: const BoxDecoration(
-                    color: RashkarColors.sand,
-                    borderRadius: RashkarRadii.pillBorderRadius,
-                  ),
-                  child: Text(
-                    scheme.state!,
-                    style: const TextStyle(fontSize: 11.0, fontWeight: FontWeight.w600, color: RashkarColors.ink),
-                  ),
-                ),
-              const Spacer(),
-              const Text(
-                'View Details',
-                style: TextStyle(
-                  fontFamily: RashkarTypography.primaryFont,
-                  fontSize: 13.0,
-                  fontWeight: FontWeight.w700,
-                  color: RashkarColors.forest,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(Icons.arrow_forward_rounded, size: 16, color: RashkarColors.forest),
-            ],
-          ),
         ],
+      ),
+    );
+  }
+
+  Widget _chip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: AppBorderRadius.pill,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
