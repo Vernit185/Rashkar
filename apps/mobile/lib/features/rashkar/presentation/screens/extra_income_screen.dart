@@ -1005,10 +1005,12 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
         _IncomeHeroPill(Icons.people_outline, 'Family Labor', '${_familyLaborHours.toStringAsFixed(1)} h/day'),
         ElevatedButton.icon(
           style: ElevatedButton.styleFrom(
-            backgroundColor: RashkarColors.marigold,
-            foregroundColor: RashkarColors.ink,
+            backgroundColor: RashkarColors.forest,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            minimumSize: const Size(0, 36),
           ),
-          icon: const Icon(Icons.tune_rounded, size: 17),
+          icon: const Icon(Icons.tune_rounded, size: 16),
           label: const Text('Change Farm Resources'),
           onPressed: () => _showResourceSettingsBottomSheet(context),
         ),
@@ -1054,16 +1056,16 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
                 style: TextStyle(
                   fontSize: 12.5,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? Colors.white : RashkarColors.ink,
+                  color: isSelected ? RashkarColors.forest : RashkarColors.ink,
                 ),
               ),
               selected: isSelected,
-              checkmarkColor: Colors.white,
-              selectedColor: RashkarColors.ink,
+              checkmarkColor: RashkarColors.forest,
+              selectedColor: RashkarColors.softMint,
               backgroundColor: RashkarColors.surface,
               shape: StadiumBorder(
                 side: BorderSide(
-                  color: isSelected ? RashkarColors.ink : RashkarColors.border,
+                  color: isSelected ? RashkarColors.forest : RashkarColors.paleSage,
                 ),
               ),
               onSelected: (bool selected) {
@@ -2251,25 +2253,25 @@ class _IncomeHeroPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
+        color: RashkarColors.surface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        border: Border.all(color: RashkarColors.paleSage),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: Colors.white),
+          Icon(icon, size: 15, color: RashkarColors.forest),
           const SizedBox(width: 6),
           Text(
             '$label: ',
-            style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+            style: const TextStyle(fontSize: 12, color: RashkarColors.mutedInk),
           ),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: Colors.white,
+              color: RashkarColors.ink,
             ),
           ),
         ],

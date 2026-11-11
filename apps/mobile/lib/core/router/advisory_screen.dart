@@ -1316,7 +1316,7 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
             backgroundColor: RashkarColors.forest,
             radius: 22,
             child: IconButton(
-              icon: const Icon(Icons.send_rounded, color: RashkarColors.marigold, size: 19),
+              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 19),
               onPressed: () => _sendMessage(_textController.text),
             ),
           ),
@@ -1387,11 +1387,11 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RashkarColors.surface,
         borderRadius: BorderRadius.circular(14).copyWith(bottomLeft: Radius.zero),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: RashkarColors.paleSage),
         boxShadow: const [
-          BoxShadow(color: Color(0x08000000), blurRadius: 6, offset: Offset(0, 2)),
+          BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -1399,11 +1399,11 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
         children: [
           const Row(
             children: [
-              Icon(Icons.psychology, size: 18, color: Color(0xFF1B5E20)),
+              Icon(Icons.psychology, size: 18, color: RashkarColors.forest),
               SizedBox(width: 6),
               Text(
                 'CropNet AI Assistant',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: RashkarColors.forest),
               ),
             ],
           ),

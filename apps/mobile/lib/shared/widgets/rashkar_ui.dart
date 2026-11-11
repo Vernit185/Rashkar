@@ -78,7 +78,7 @@ class RashkarLogoBadge extends StatelessWidget {
   }
 }
 
-/// Clean Figma-style elevated/hairline card with warm border and optional active highlight.
+/// Clean AgriNova-inspired card with pale sage border and subtle surface styling.
 class RashkarCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -96,7 +96,7 @@ class RashkarCard extends StatelessWidget {
     this.backgroundColor,
     this.borderColor,
     this.borderWidth = 1,
-    this.borderRadius = 10,
+    this.borderRadius = 12,
     this.selected = false,
     this.onTap,
   });
@@ -106,8 +106,8 @@ class RashkarCard extends StatelessWidget {
     final effectiveBorder = selected
         ? RashkarColors.forest
         : (borderColor ?? RashkarColors.border);
-    final effectiveWidth = selected ? 2.0 : borderWidth;
-    final effectiveBg = backgroundColor ?? RashkarColors.surface;
+    final effectiveWidth = selected ? 1.5 : borderWidth;
+    final effectiveBg = backgroundColor ?? (selected ? RashkarColors.softMint : RashkarColors.surface);
 
     return Material(
       color: effectiveBg,
@@ -127,7 +127,7 @@ class RashkarCard extends StatelessWidget {
   }
 }
 
-/// Deep botanical pine hero banner inspired by the Figma Home & Verification cards.
+/// AgriNova-inspired clean, spacious hero banner with gentle mint background and crisp dark typography.
 class RashkarHeroBanner extends StatelessWidget {
   final String title;
   final String? eyebrow;
@@ -136,6 +136,7 @@ class RashkarHeroBanner extends StatelessWidget {
   final Widget? farmSelector;
   final List<Widget> footerChildren;
   final EdgeInsetsGeometry padding;
+  final bool lightMode;
 
   const RashkarHeroBanner({
     super.key,
@@ -146,20 +147,25 @@ class RashkarHeroBanner extends StatelessWidget {
     this.farmSelector,
     this.footerChildren = const [],
     this.padding = const EdgeInsets.all(22),
+    this.lightMode = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final titleColor = lightMode ? RashkarColors.ink : Colors.white;
+    final subtitleColor = lightMode ? RashkarColors.mutedInk : RashkarColors.forestTextMuted;
+    final eyebrowColor = lightMode ? RashkarColors.forest : RashkarColors.forestTextMuted;
+
     return Container(
       width: double.infinity,
       padding: padding,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [RashkarColors.forest, RashkarColors.forestDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        color: lightMode ? RashkarColors.softMint : RashkarColors.forest,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: lightMode ? RashkarColors.paleSage : RashkarColors.forestDark,
+          width: 1,
         ),
-        borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,32 +180,33 @@ class RashkarHeroBanner extends StatelessWidget {
                     if (eyebrow != null && eyebrow!.isNotEmpty) ...[
                       Text(
                         eyebrow!,
-                        style: const TextStyle(
-                          color: RashkarColors.forestTextMuted,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                        style: TextStyle(
+                          color: eyebrowColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.4,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 5),
                     ],
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 22,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: -0.4,
-                        height: 1.18,
+                        letterSpacing: -0.3,
+                        height: 1.2,
                       ),
                     ),
                     if (subtitle != null && subtitle!.isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
                         subtitle!,
-                        style: const TextStyle(
-                          color: RashkarColors.forestTextMuted,
-                          fontSize: 13.5,
-                          height: 1.4,
+                        style: TextStyle(
+                          color: subtitleColor,
+                          fontSize: 14,
+                          height: 1.45,
                         ),
                       ),
                     ],
@@ -533,7 +540,7 @@ class RashkarMetricTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return RashkarCard(
       padding: const EdgeInsets.all(14),
-      borderRadius: 16,
+      borderRadius: 12,
       child: Row(
         children: [
           Container(
@@ -541,7 +548,7 @@ class RashkarMetricTile extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: iconBg ?? RashkarColors.mintBg,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, size: 20, color: iconColor ?? RashkarColors.forest),
           ),
@@ -926,8 +933,8 @@ class RashkarNoticeCallout extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border, width: 1.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border, width: 1.0),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
