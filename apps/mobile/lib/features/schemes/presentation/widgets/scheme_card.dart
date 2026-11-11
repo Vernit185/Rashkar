@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/app_decorations.dart';
 import '../../../../shared/widgets/app_spacing.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../../models/scheme_models.dart';
 
 /// Colour and icon accent for each scheme category.
@@ -65,59 +67,62 @@ class SchemeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = schemeCategoryColor(scheme.category);
-    return InkWell(
+    return RashkarCard(
+      padding: AppSpacing.paddingAllMD,
       onTap: onTap,
-      borderRadius: AppBorderRadius.card,
-      child: Container(
-        decoration: AppDecorations.accentCard(accentColor: accent),
-        padding: AppSpacing.paddingAllMD,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: accent.withValues(alpha: 0.12),
-                  foregroundColor: accent,
-                  child: Icon(schemeCategoryIcon(scheme.category), size: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                AppSpacing.horizontalSpaceSM,
-                Expanded(
-                  child: Text(
-                    scheme.schemeName,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                child: Icon(schemeCategoryIcon(scheme.category), size: 20, color: accent),
+              ),
+              AppSpacing.horizontalSpaceSM,
+              Expanded(
+                child: Text(
+                  scheme.schemeName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: RashkarColors.ink,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
-            AppSpacing.verticalSpaceSM,
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: [
-                _chip(scheme.category, accent),
-                _chip(scheme.governmentLevel, Colors.blueGrey),
-                if (scheme.state != null && scheme.state!.isNotEmpty)
-                  _chip(scheme.state!, Colors.indigo),
-                if (!scheme.isVerified) _chip('Not verified', Colors.orange),
-              ],
-            ),
-            if (scheme.description != null && scheme.description!.isNotEmpty) ...[
-              AppSpacing.verticalSpaceSM,
-              Text(
-                scheme.description!,
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
+          ),
+          AppSpacing.verticalSpaceSM,
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: [
+              _chip(scheme.category, accent),
+              _chip(scheme.governmentLevel, RashkarColors.mutedInk),
+              if (scheme.state != null && scheme.state!.isNotEmpty)
+                _chip(scheme.state!, RashkarColors.skyFg),
+              if (!scheme.isVerified) _chip('Not verified', RashkarColors.marigoldInk),
+            ],
+          ),
+          if (scheme.description != null && scheme.description!.isNotEmpty) ...[
+            AppSpacing.verticalSpaceSM,
+            Text(
+              scheme.description!,
+              style: const TextStyle(fontSize: 13, color: RashkarColors.mutedInk, height: 1.35),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

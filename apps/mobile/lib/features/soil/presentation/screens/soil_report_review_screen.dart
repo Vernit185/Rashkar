@@ -146,9 +146,6 @@ class _SoilReportReviewScreenState extends State<SoilReportReviewScreen> {
               report != null ? 'Review: ${report.filename}' : 'Soil Report Review',
               style: const TextStyle(fontSize: 16),
             ),
-            backgroundColor: const Color(0xFF1B5E20),
-            foregroundColor: Colors.white,
-            elevation: 1,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back),
               onPressed: () {

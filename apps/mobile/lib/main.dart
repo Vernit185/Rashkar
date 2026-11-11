@@ -24,6 +24,12 @@ import 'package:cropnet_mobile/features/rashkar/data/rashkar_repository.dart';
 import 'package:cropnet_mobile/features/rashkar/models/rashkar_models.dart';
 import 'package:cropnet_mobile/features/auth/auth_service.dart';
 import 'package:cropnet_mobile/features/auth/auth_state.dart';
+import 'package:cropnet_mobile/shared/theme/rashkar_colors.dart';
+import 'package:cropnet_mobile/shared/theme/rashkar_theme.dart';
+import 'package:cropnet_mobile/shared/widgets/centered_page_container.dart';
+import 'package:cropnet_mobile/shared/widgets/rashkar_charts.dart';
+import 'package:cropnet_mobile/shared/widgets/rashkar_ui.dart';
+import 'package:cropnet_mobile/shared/widgets/responsive_grid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -141,22 +147,9 @@ class CropNetApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'CropNet AI',
+      title: 'RASHKAR · CropNet AI',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
-          primary: const Color(0xFF1B5E20),
-          secondary: const Color(0xFFE65100),
-          surface: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1B5E20),
-          foregroundColor: Colors.white,
-          elevation: 2,
-        ),
-      ),
+      theme: RashkarTheme.light(),
       routerConfig: routerConfig ?? appRouter,
     );
   }
@@ -229,9 +222,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 }
 
 // ==========================================
-// 1. MY FARMS DASHBOARD
+// 1. FARMER-FIRST HOME SCREEN
 // ==========================================
-class MyFarmsDashboard extends StatelessWidget {
+class MyFarmsDashboard extends StatefulWidget {
   final List<FarmItem> farms;
   final Function(FarmItem) onAddFarm;
   final Function(FarmItem) onUpdateFarm;
@@ -246,161 +239,1062 @@ class MyFarmsDashboard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final repo = FarmRepository.instance;
+  State<MyFarmsDashboard> createState() => _MyFarmsDashboardState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Registered Farms', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Farms',
-            onPressed: () => repo.loadFarms(),
-          ),
-        ],
+class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
+  final WeatherRepository _weatherRepo = WeatherRepository();
+  final RashkarRepository _rashkarRepo = RashkarRepository.instance;
+
+  String? _loadedFarmId;
+  bool _isSummaryLoading = false;
+  SharedFarmContext? _sharedContext;
+  CurrentWeatherObservation? _currentWeather;
+  WorkerHeatResponse? _workerHeat;
+  CropHeatAssessment? _cropHeat;
+  bool _needsWorkerSetup = false;
+  bool _needsCropSetup = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncSelectedFarmSummary();
+  }
+
+  @override
+  void didUpdateWidget(covariant MyFarmsDashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncSelectedFarmSummary();
+  }
+
+  FarmItem? get _activeFarm {
+    if (widget.farms.isEmpty) return null;
+    final selectedId = FarmRepository.instance.selectedFarmId;
+    return widget.farms.firstWhere(
+      (f) => f.id == selectedId,
+      orElse: () => widget.farms.first,
+    );
+  }
+
+  Future<void> _syncSelectedFarmSummary({bool force = false}) async {
+    final farm = _activeFarm;
+    if (farm == null) {
+      if (_loadedFarmId != null) {
+        setState(() {
+          _loadedFarmId = null;
+          _sharedContext = null;
+          _currentWeather = null;
+          _workerHeat = null;
+          _cropHeat = null;
+          _needsWorkerSetup = false;
+          _needsCropSetup = false;
+        });
+      }
+      return;
+    }
+
+    if (!force && _loadedFarmId == farm.id) return;
+    _loadedFarmId = farm.id;
+
+    setState(() {
+      _isSummaryLoading = true;
+      _sharedContext = null;
+      _currentWeather = null;
+      _workerHeat = null;
+      _cropHeat = null;
+      _needsWorkerSetup = false;
+      _needsCropSetup = false;
+    });
+
+    SharedFarmContext? ctx;
+    CurrentWeatherObservation? weather;
+    WorkerHeatResponse? worker;
+    CropHeatAssessment? crop;
+    bool workerMissing = false;
+    bool cropMissing = false;
+
+    try {
+      ctx = await _rashkarRepo.getSharedContext(farm.id);
+    } catch (_) {}
+
+    try {
+      weather = await _weatherRepo.getCurrentWeather(farm.id);
+    } catch (_) {}
+
+    try {
+      worker = await _rashkarRepo.assessWorkerHeat(farm.id, saveAsDefault: false);
+    } on MissingSharedContextException {
+      workerMissing = true;
+    } catch (_) {}
+
+    try {
+      crop = await _rashkarRepo.assessCropHeat(farm.id);
+    } on MissingSharedContextException {
+      cropMissing = true;
+    } catch (_) {
+      if (ctx != null && ctx.cropCycles.isEmpty) {
+        cropMissing = true;
+      }
+    }
+
+    if (!mounted || _activeFarm?.id != farm.id) return;
+    setState(() {
+      _isSummaryLoading = false;
+      _sharedContext = ctx;
+      _currentWeather = weather;
+      _workerHeat = worker;
+      _cropHeat = crop;
+      _needsWorkerSetup = workerMissing;
+      _needsCropSetup = cropMissing;
+    });
+  }
+
+  String _greetingText() {
+    final hour = DateTime.now().hour;
+    final prefix = hour < 12
+        ? 'Good morning'
+        : (hour < 17 ? 'Good afternoon' : 'Good evening');
+    final rawName = _sharedContext?.farmerProfile.fullName?.trim() ?? '';
+    final lower = rawName.toLowerCase();
+    const ignored = {'null', 'dev', 'dev_user', 'dev user', 'default', 'user', 'test'};
+    if (rawName.isNotEmpty && !ignored.contains(lower)) {
+      final firstName = rawName.split(RegExp(r'\s+')).first;
+      if (firstName.isNotEmpty && !ignored.contains(firstName.toLowerCase())) {
+        return '$prefix, $firstName';
+      }
+    }
+    return prefix;
+  }
+
+  String _sentenceCase(String raw) {
+    final clean = raw.trim();
+    if (clean.isEmpty) return '';
+    return clean[0].toUpperCase() + clean.substring(1);
+  }
+
+  int _riskRank(String? level) {
+    switch ((level ?? '').toUpperCase()) {
+      case 'CRITICAL':
+      case 'EXTREME':
+        return 4;
+      case 'HIGH':
+        return 3;
+      case 'MODERATE':
+        return 2;
+      case 'LOW':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  ({String title, String message, String buttonLabel, String route, String severity})?
+      _importantWarning(FarmItem farm) {
+    final workerLevel = _workerHeat?.currentHazardLevel.toUpperCase();
+    final cropLevel = _cropHeat?.overallCropHeatRisk.toUpperCase();
+    final workerRank = _riskRank(workerLevel);
+    final cropRank = _riskRank(cropLevel);
+
+    if (workerRank < 2 && cropRank < 2) {
+      return null;
+    }
+
+    if (workerRank >= cropRank && workerRank >= 2) {
+      final level = workerLevel!;
+      final isSevere = workerRank >= 3;
+      return (
+        title: isSevere
+            ? 'Important warning: Very hot for outdoor work today'
+            : 'Heat alert: Take regular shade and water breaks today',
+        message: isSevere
+            ? 'Avoid heavy fieldwork during peak afternoon hours. Drink water every 15–20 minutes.'
+            : 'Outdoor work feels warm today. Carry drinking water and rest in shade regularly.',
+        buttonLabel: 'Check Worker Heat Risk',
+        route: '${RoutePaths.riskWorkerHeat}?farmId=${farm.id}',
+        severity: level,
+      );
+    }
+
+    final level = cropLevel!;
+    final isSevere = cropRank >= 3;
+    final cropName = _cropHeat?.cropCommonName ?? 'your crop';
+    return (
+      title: isSevere
+          ? 'Important warning: High heat stress on $cropName'
+          : 'Weather note: Warm conditions for $cropName',
+      message: isSevere
+          ? 'High temperatures may stress your field. Open Crop Heat Risk to check care steps.'
+          : 'Keep an eye on soil moisture in your $cropName plot today.',
+      buttonLabel: 'Check My Crop',
+      route: '${RoutePaths.riskCropHeat}?farmId=${farm.id}',
+      severity: level,
+    );
+  }
+
+  void _openGetHelpSheet(BuildContext context, FarmItem farm) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: RashkarColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF1B5E20),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_location_alt),
-        label: const Text('Register New Farm', style: TextStyle(fontWeight: FontWeight.bold)),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (ctx) => AddEditFarmScreen(onSave: onAddFarm),
+      builder: (sheetCtx) {
+        Widget helpTile({
+          required IconData icon,
+          required String title,
+          required String subtitle,
+          required VoidCallback onTap,
+        }) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Material(
+              color: RashkarColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: const BorderSide(color: RashkarColors.border),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  onTap();
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: RashkarColors.mintBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(icon, color: RashkarColors.forest, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: RashkarColors.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                color: RashkarColors.mutedInk,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: RashkarColors.mutedInk),
+                    ],
+                  ),
+                ),
+              ),
             ),
           );
-        },
-      ),
-      body: repo.isLoading && farms.isEmpty
+        }
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'How can we help?',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: RashkarColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Choose what you need right now.',
+                  style: TextStyle(fontSize: 14, color: RashkarColors.mutedInk),
+                ),
+                const SizedBox(height: 16),
+                helpTile(
+                  icon: Icons.question_answer_outlined,
+                  title: 'Ask Rashkar',
+                  subtitle: 'Ask a simple question about your crop, soil, or water',
+                  onTap: () => context.go(RoutePaths.advisory),
+                ),
+                helpTile(
+                  icon: Icons.medical_services_outlined,
+                  title: 'Crop Doctor',
+                  subtitle: 'Check sick leaves or crop damage from a photo',
+                  onTap: () => context.go(RoutePaths.cropDoctor),
+                ),
+                helpTile(
+                  icon: Icons.account_balance_outlined,
+                  title: 'Government Help',
+                  subtitle: 'View subsidies, insurance & farmer schemes',
+                  onTap: () => context.go(RoutePaths.schemes),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = FarmRepository.instance;
+    final selectedFarm = _activeFarm;
+    final isNarrow = MediaQuery.sizeOf(context).width < 680;
+
+    return Scaffold(
+      backgroundColor: RashkarColors.canvas,
+      body: repo.isLoading && widget.farms.isEmpty
           ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(),
+                  CircularProgressIndicator(color: RashkarColors.forestTint),
                   SizedBox(height: 16),
-                  Text('Loading your registered farms...', style: TextStyle(color: Colors.black54)),
+                  Text(
+                    'Loading your farm...',
+                    style: TextStyle(fontSize: 15, color: RashkarColors.mutedInk),
+                  ),
                 ],
               ),
             )
-          : repo.error != null && farms.isEmpty
+          : repo.error != null && widget.farms.isEmpty
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.cloud_off_outlined, size: 64, color: Colors.redAccent),
-                        const SizedBox(height: 16),
-                        const Text('Unable to connect to CropNet server', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Text(repo.error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.black54, fontSize: 13)),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1B5E20),
-                            foregroundColor: Colors.white,
+                  child: CenteredPageContainer(
+                    maxWidth: 520,
+                    child: RashkarCard(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_outlined, size: 46, color: RashkarColors.extremeBar),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'Could not reach server',
+                            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: RashkarColors.ink),
                           ),
-                          onPressed: () => repo.loadFarms(),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry Connection'),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Please check your internet connection and try again.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 15, color: RashkarColors.mutedInk),
+                          ),
+                          const SizedBox(height: 18),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => repo.loadFarms(),
+                              icon: const Icon(Icons.refresh),
+                              label: const Text('Try Again'),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 )
               : RefreshIndicator(
-              onRefresh: () => repo.loadFarms(),
-              child: farms.isEmpty
-                  ? ListView(
-                      children: const [
-                        SizedBox(height: 120),
-                        Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.agriculture, size: 72, color: Colors.grey),
-                              SizedBox(height: 16),
-                              Text('No farms registered yet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              SizedBox(height: 8),
-                              Text('Tap "Register New Farm" to draw your plot on the map.', style: TextStyle(color: Colors.black54)),
-                            ],
+                  color: RashkarColors.forestTint,
+                  onRefresh: () async {
+                    await repo.loadFarms();
+                    await _syncSelectedFarmSummary(force: true);
+                  },
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(0, 8, 0, 48),
+                    child: CenteredPageContainer(
+                      maxWidth: 860,
+                      child: selectedFarm == null
+                          ? _buildNoFarmState(context)
+                          : _buildFarmerHomeBody(context, repo, selectedFarm, isNarrow),
+                    ),
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildNoFarmState(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          _greetingText(),
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+            color: RashkarColors.ink,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Welcome to Rashkar farm support.',
+          style: TextStyle(fontSize: 15.5, color: RashkarColors.mutedInk),
+        ),
+        const SizedBox(height: 20),
+        RashkarCard(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.agriculture_outlined, size: 40, color: RashkarColors.forestTint),
+              const SizedBox(height: 12),
+              const Text(
+                'Add your farm to get started',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Mark your field on the map once. We will show today’s weather, heat warnings, and simple advice for your crop.',
+                style: TextStyle(fontSize: 15, color: RashkarColors.mutedInk, height: 1.45),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.add_location_alt_outlined),
+                  label: const Text('Add My Farm'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (ctx) => AddEditFarmScreen(onSave: widget.onAddFarm),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFarmerHomeBody(
+    BuildContext context,
+    FarmRepository repo,
+    FarmItem farm,
+    bool isNarrow,
+  ) {
+    final warning = _importantWarning(farm);
+    final activeCrop = (_cropHeat?.cropCommonName.isNotEmpty == true)
+        ? _cropHeat!.cropCommonName
+        : (_sharedContext?.cropCycles.isNotEmpty == true
+            ? _sentenceCase(_sharedContext!.cropCycles.first.cropCode)
+            : null);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. SIMPLE GREETING & ACTIVE FARM CONTEXT
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _greetingText(),
+                    style: const TextStyle(
+                       fontSize: 26,
+                       fontWeight: FontWeight.w800,
+                       color: RashkarColors.ink,
+                       height: 1.15,
+                     ),
+                   ),
+                   const SizedBox(height: 4),
+                   Text(
+                     farm.name,
+                     style: const TextStyle(
+                       fontSize: 15,
+                       color: RashkarColors.mutedInk,
+                       fontWeight: FontWeight.w600,
+                     ),
+                   ),
+                ],
+              ),
+            ),
+            if (isNarrow && widget.farms.length > 1) ...[
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                label: const Text('Switch Farm'),
+                onPressed: () => showRashkarFarmPickerModal(
+                  context: context,
+                  farms: widget.farms,
+                  selectedFarmId: farm.id,
+                  onSelected: (f) {
+                    repo.selectFarm(f.id);
+                    _syncSelectedFarmSummary(force: true);
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 18),
+
+        // 2. TODAY ON YOUR FARM (AgriNova gentle mint overview with crisp white status cards)
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: RashkarColors.softMint,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: RashkarColors.paleSage, width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.spa_outlined, size: 18, color: RashkarColors.forest),
+                      SizedBox(width: 8),
+                      Text(
+                        'Today on your farm',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: RashkarColors.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_isSummaryLoading)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: RashkarColors.forestTint),
+                    )
+                  else
+                    InkWell(
+                      onTap: () => _syncSelectedFarmSummary(force: true),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(
+                          'Refresh',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: RashkarColors.forestTint,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 14,
+                runSpacing: 12,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: RashkarColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: RashkarColors.paleSage),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: RashkarColors.softMint,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.wb_sunny_outlined, color: RashkarColors.forest, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _currentWeather != null
+                                  ? '${_currentWeather!.temperatureC.round()}°C · ${_sentenceCase(_currentWeather!.weatherDescription)}'
+                                  : (_isSummaryLoading
+                                      ? 'Checking today’s weather...'
+                                      : 'Weather check unavailable right now'),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: RashkarColors.ink,
+                              ),
+                            ),
+                            Text(
+                              _currentWeather != null
+                                  ? 'Humidity ${_currentWeather!.humidityPercent.round()}%'
+                                  : 'Tap Weather below to retry',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: RashkarColors.mutedInk,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: RashkarColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: RashkarColors.paleSage),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: RashkarColors.softMint,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.grass_outlined, color: RashkarColors.forest, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              activeCrop != null
+                                  ? 'Crop: $activeCrop'
+                                  : 'No crop added yet',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: RashkarColors.ink,
+                              ),
+                            ),
+                            Text(
+                              activeCrop != null
+                                  ? (_cropHeat != null &&
+                                          _cropHeat!.growthStageNameEn.isNotEmpty &&
+                                          _cropHeat!.growthStageNameEn.toLowerCase() != 'null'
+                                      ? '${_cropHeat!.growthStageNameEn} stage'
+                                      : 'Tap My Crop to check heat care')
+                                  : 'Tap My Crop to add your crop',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: RashkarColors.mutedInk,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (warning == null && !_isSummaryLoading && (_workerHeat != null || _cropHeat != null)) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: RashkarColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: RashkarColors.paleSage),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_workerHeat != null) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              _workerHeat!.currentHazardLevel == 'LOW'
+                                  ? Icons.check_circle_outline
+                                  : Icons.warning_amber_rounded,
+                              size: 16,
+                              color: _workerHeat!.currentHazardLevel == 'LOW'
+                                  ? RashkarColors.forest
+                                  : RashkarColors.marigoldInk,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _workerHeat!.currentHazardLevel == 'LOW'
+                                    ? 'Worker Heat: Comfortable for regular fieldwork right now.'
+                                    : 'Worker Heat: ${_workerHeat!.currentHazardLevel} risk — follow hydration & rest advice.',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: _workerHeat!.currentHazardLevel == 'LOW'
+                                      ? RashkarColors.forestDark
+                                      : RashkarColors.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      if (_workerHeat != null && _cropHeat != null) const SizedBox(height: 6),
+                      if (_cropHeat != null) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
+                                  ? Icons.check_circle_outline
+                                  : Icons.warning_amber_rounded,
+                              size: 16,
+                              color: _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
+                                  ? RashkarColors.forest
+                                  : RashkarColors.marigoldInk,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
+                                    ? '${_cropHeat!.cropCommonName}: Temperatures are currently within safe growth limits.'
+                                    : '${_cropHeat!.cropCommonName}: ${_cropHeat!.overallCropHeatRisk} heat stress — check irrigation steps.',
+                                style: TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
+                                      ? RashkarColors.forestDark
+                                      : RashkarColors.ink,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        // 3. IMPORTANT FARM WARNING (Shown only when a real warning or missing setup exists)
+        if (warning != null) ...[
+          const SizedBox(height: 16),
+          _buildWarningBanner(context, warning),
+        ] else if (!_isSummaryLoading && (_needsWorkerSetup || _needsCropSetup)) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: RashkarColors.marigoldTint,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: RashkarColors.marigoldBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: RashkarColors.marigoldInk, size: 22),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Add missing farm details for daily warnings',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: RashkarColors.ink,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _needsWorkerSetup
+                      ? 'Tell us your normal fieldwork details once so we can warn you about unsafe heat.'
+                      : 'Tell us which crop you planted so we can warn you before heat harms your field.',
+                  style: const TextStyle(fontSize: 14.5, color: RashkarColors.ink, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => context.go(
+                    _needsWorkerSetup
+                        ? '${RoutePaths.riskWorkerHeat}?farmId=${farm.id}'
+                        : '${RoutePaths.riskCropHeat}?farmId=${farm.id}',
+                  ),
+                  child: Text(_needsWorkerSetup ? 'Complete Work Profile' : 'Add Crop Now'),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 24),
+
+        // 4. ACTION-ORIENTED PRIMARY NAVIGATION ("What would you like to do?")
+        const Text(
+          'What would you like to do?',
+          style: TextStyle(
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+            color: RashkarColors.ink,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ResponsiveGrid(
+          mobileColumns: 1,
+          tabletColumns: 2,
+          desktopColumns: 3,
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            _PrimaryHomeActionCard(
+              icon: Icons.wb_sunny_outlined,
+              title: 'Check Heat Risk',
+              subtitle: 'See when outdoor work is safe today',
+              onTap: () => context.go('${RoutePaths.riskWorkerHeat}?farmId=${farm.id}'),
+            ),
+            _PrimaryHomeActionCard(
+              icon: Icons.grass_outlined,
+              title: 'Check My Crop',
+              subtitle: 'Check crop heat stress and care steps',
+              onTap: () => context.go('${RoutePaths.riskCropHeat}?farmId=${farm.id}'),
+            ),
+            _PrimaryHomeActionCard(
+              icon: Icons.savings_outlined,
+              title: 'Earn More',
+              subtitle: 'Find ways to earn or save money from your farm',
+              onTap: () => context.go('${RoutePaths.extraIncome}?farmId=${farm.id}'),
+            ),
+            _PrimaryHomeActionCard(
+              icon: Icons.terrain_outlined,
+              title: 'Check My Soil',
+              subtitle: 'Understand your soil and see test results',
+              onTap: () => context.push(RoutePaths.soilDetailPath(farm.id)),
+            ),
+            _PrimaryHomeActionCard(
+              icon: Icons.medical_services_outlined,
+              title: 'Check a Leaf',
+              subtitle: 'Take a leaf photo to screen crop problems',
+              onTap: () => context.go(RoutePaths.cropDoctor),
+            ),
+            _PrimaryHomeActionCard(
+              icon: Icons.question_answer_outlined,
+              title: 'Ask Rashkar',
+              subtitle: 'Ask questions about farming, crops, or schemes',
+              onTap: () => _openGetHelpSheet(context, farm),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        // 5. SIMPLE FARM ACCESS
+        RashkarCard(
+          backgroundColor: RashkarColors.surface,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(Icons.landscape_outlined, size: 20, color: RashkarColors.forest),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${farm.name} · ${farm.areaAcres.toStringAsFixed(1)} acres · ${farm.taluka}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: RashkarColors.ink,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.map_outlined, size: 16),
+                label: const Text('View Boundary'),
+                onPressed: () => context.push(RoutePaths.farmDetailPath(farm.id)),
+              ),
+              if (widget.farms.length > 1) ...[
+                const SizedBox(width: 6),
+                TextButton.icon(
+                  icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+                  label: const Text('Add Farm'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (ctx) => AddEditFarmScreen(onSave: widget.onAddFarm),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWarningBanner(
+    BuildContext context,
+    ({String title, String message, String buttonLabel, String route, String severity}) warning,
+  ) {
+    final style = RashkarColors.severityFor(warning.severity);
+    return Container(
+      decoration: BoxDecoration(
+        color: style.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: style.border),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              width: 6,
+              decoration: BoxDecoration(
+                color: style.bar,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(10),
+                  bottomLeft: Radius.circular(10),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: style.foreground, size: 22),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            warning.title,
+                            style: TextStyle(
+                              fontSize: 16.5,
+                              fontWeight: FontWeight.w800,
+                              color: style.foreground,
+                            ),
                           ),
                         ),
                       ],
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: farms.length,
-                      itemBuilder: (ctx, idx) {
-                        final farm = farms[idx];
-                        return Card(
-                          elevation: 2,
-                          margin: const EdgeInsets.only(bottom: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.all(14),
-                            leading: const CircleAvatar(
-                              backgroundColor: Color(0xFFE8F5E9),
-                              foregroundColor: Color(0xFF1B5E20),
-                              radius: 26,
-                              child: Icon(Icons.fence, size: 28),
-                            ),
-                            title: Text(
-                              farm.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${farm.village != null ? "${farm.village}, " : ""}${farm.taluka}, ${farm.district}',
-                                  style: const TextStyle(color: Colors.black87),
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE8F5E9),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        '${farm.areaHectares.toStringAsFixed(2)} ha (${farm.areaAcres.toStringAsFixed(2)} acres)',
-                                        style: const TextStyle(color: Color(0xFF1B5E20), fontWeight: FontWeight.bold, fontSize: 12),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      '${farm.polygonPoints.length} boundary points',
-                                      style: const TextStyle(fontSize: 11, color: Colors.black54),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (ctx) => FarmDetailScreen(
-                                    farm: farm,
-                                    onUpdate: onUpdateFarm,
-                                    onDelete: onDeleteFarm,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
                     ),
+                    const SizedBox(height: 6),
+                    Text(
+                      warning.message,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        color: RashkarColors.ink,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: style.foreground,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 44),
+                      ),
+                      onPressed: () => context.go(warning.route),
+                      child: Text(warning.buttonLabel),
+                    ),
+                  ],
+                ),
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PrimaryHomeActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _PrimaryHomeActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: RashkarColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: RashkarColors.border, width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 92),
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: RashkarColors.mintBg,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: RashkarColors.forest, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: RashkarColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: RashkarColors.mutedInk,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right_rounded, color: RashkarColors.forest, size: 24),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -686,184 +1580,156 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
     final initialCenter = _polygonPoints.isNotEmpty
         ? _polygonPoints.first
         : (_talukaCoordinates[_selectedTaluka] ?? const LatLng(18.18, 74.53));
+    final isWide = MediaQuery.sizeOf(context).width >= 960;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.farmToEdit != null ? 'Edit Farm Boundary' : 'Draw Farm Boundary'),
-        actions: [
-          _isSaving
-              ? const Padding(
-                  padding: EdgeInsets.all(14.0),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+    final mapPanel = Stack(
+      children: [
+        FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: initialCenter,
+            initialZoom: 16.0,
+            onTap: _onMapTap,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$kMapTilerApiKey',
+              userAgentPackageName: 'com.cropnet.cropnet_mobile',
+              maxZoom: 19,
+            ),
+            if (_polygonPoints.length >= 3)
+              PolygonLayer(
+                polygons: [
+                  Polygon(
+                    points: _polygonPoints,
+                    color: const Color(0x55214E34),
+                    borderColor: RashkarColors.marigold,
+                    borderStrokeWidth: 3.0,
                   ),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.check, size: 28),
-                  onPressed: _saveFarm,
-                ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Interactive Map Area (Takes 55% of screen height)
-          Expanded(
-            flex: 6,
-            child: Stack(
-              children: [
-                FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: initialCenter,
-                    initialZoom: 16.0,
-                    onTap: _onMapTap,
+                ],
+              ),
+            if (_polygonPoints.length >= 2)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: [..._polygonPoints, _polygonPoints.first],
+                    color: RashkarColors.highBar,
+                    strokeWidth: 2.5,
                   ),
-                  children: [
-                    // Base Satellite Tile Layer via MapTiler
-                    TileLayer(
-                      urlTemplate: 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$kMapTilerApiKey',
-                      userAgentPackageName: 'com.cropnet.cropnet_mobile',
-                      maxZoom: 19,
-                    ),
-                    // Polygon Drawing Layer
-                    if (_polygonPoints.length >= 3)
-                      PolygonLayer(
-                        polygons: [
-                          Polygon(
-                            points: _polygonPoints,
-                            color: const Color(0x664CAF50),
-                            borderColor: const Color(0xFF1B5E20),
-                            borderStrokeWidth: 3.0,
-                          ),
-                        ],
-                      ),
-                    // Polyline between vertices while drawing
-                    if (_polygonPoints.length >= 2)
-                      PolylineLayer(
-                        polylines: [
-                          Polyline(
-                            points: [..._polygonPoints, _polygonPoints.first],
-                            color: const Color(0xFFE65100),
-                            strokeWidth: 2.5,
-                          ),
-                        ],
-                      ),
-                    // Vertex Markers
-                    MarkerLayer(
-                      markers: _polygonPoints.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final point = entry.value;
-                        return Marker(
-                          point: point,
-                          width: 22,
-                          height: 22,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: idx == 0 ? Colors.green : const Color(0xFFE65100),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${idx + 1}',
-                                style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-
-                // Top Floating Instruction Banner with Undo & Clear Controls
-                Positioned(
-                  top: 10,
-                  left: 10,
-                  right: 10,
+                ],
+              ),
+            MarkerLayer(
+              markers: _polygonPoints.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final point = entry.value;
+                return Marker(
+                  point: point,
+                  width: 24,
+                  height: 24,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xEE1E293B),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: const [
-                        BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
-                      ],
+                      color: idx == 0 ? RashkarColors.forest : RashkarColors.marigold,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          _polygonPoints.length < 3 ? Icons.touch_app : Icons.check_circle,
-                          color: _polygonPoints.length < 3 ? Colors.amberAccent : Colors.lightGreenAccent,
-                          size: 20,
+                    child: Center(
+                      child: Text(
+                        '${idx + 1}',
+                        style: TextStyle(
+                          color: idx == 0 ? Colors.white : RashkarColors.ink,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
                         ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _polygonPoints.length < 3
-                                ? 'Tap/click map to add vertices (${3 - _polygonPoints.length} more needed for boundary)'
-                                : 'Boundary: ${_calculatedAreaHectares.toStringAsFixed(2)} ha (${_calculatedAreaAcres.toStringAsFixed(2)} ac) • ${_polygonPoints.length} vertices',
-                            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        if (_polygonPoints.isNotEmpty) ...[
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.orangeAccent,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            icon: const Icon(Icons.undo, size: 16),
-                            label: const Text('Undo', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                            onPressed: _undoLastPoint,
-                          ),
-                          const SizedBox(width: 6),
-                          TextButton.icon(
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.redAccent,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            icon: const Icon(Icons.delete_sweep, size: 16),
-                            label: const Text('Clear', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold)),
-                            onPressed: _clearPolygon,
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: RashkarColors.forestDark.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _polygonPoints.length < 3 ? Icons.touch_app_rounded : Icons.check_circle_rounded,
+                  color: _polygonPoints.length < 3 ? RashkarColors.marigold : const Color(0xFF9DE3B3),
+                  size: 20,
                 ),
-
-                // GPS Centring Button
-                Positioned(
-                  bottom: 12,
-                  right: 12,
-                  child: FloatingActionButton.small(
-                    backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF1B5E20),
-                    onPressed: _centerOnCurrentLocation,
-                    tooltip: 'Capture GPS Location',
-                    child: const Icon(Icons.my_location),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _polygonPoints.length < 3
+                        ? 'Tap/click map to add vertices (${3 - _polygonPoints.length} more needed for boundary)'
+                        : 'Boundary: ${_calculatedAreaHectares.toStringAsFixed(2)} ha (${_calculatedAreaAcres.toStringAsFixed(2)} ac) • ${_polygonPoints.length} vertices',
+                    style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
                   ),
                 ),
+                if (_polygonPoints.isNotEmpty) ...[
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: RashkarColors.marigold,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.undo_rounded, size: 16),
+                    label: const Text('Undo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    onPressed: _undoLastPoint,
+                  ),
+                  const SizedBox(width: 6),
+                  TextButton.icon(
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFFFFB4AB),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.delete_sweep_outlined, size: 16),
+                    label: const Text('Clear', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    onPressed: _clearPolygon,
+                  ),
+                ],
               ],
             ),
           ),
+        ),
+        Positioned(
+          bottom: 14,
+          right: 14,
+          child: FloatingActionButton.small(
+            backgroundColor: RashkarColors.surface,
+            foregroundColor: RashkarColors.forest,
+            onPressed: _centerOnCurrentLocation,
+            tooltip: 'Capture GPS Location',
+            child: const Icon(Icons.my_location_rounded),
+          ),
+        ),
+      ],
+    );
 
-          // Farm Metadata Form Area (Takes 45% of screen height)
-          Expanded(
-            flex: 4,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+    final formPanel = SingleChildScrollView(
+      padding: EdgeInsets.all(isWide ? 22.0 : 16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            RashkarStepProgress(
+              currentStep: _polygonPoints.length >= 3 ? 2 : 1,
+              stepLabels: const ['About plot', 'Mark boundary', 'Crop & worker', 'Save'],
+            ),
+            const SizedBox(height: 16),
                     TextFormField(
                       controller: _nameController,
                       decoration: const InputDecoration(
@@ -1205,23 +2071,61 @@ class _AddEditFarmScreenState extends State<AddEditFarmScreen> {
                     const SizedBox(height: 16),
 
                     ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1B5E20),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      icon: const Icon(Icons.save),
-                      label: const Text('Save Farm & Persist Boundary in PostGIS', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      icon: const Icon(Icons.save_rounded),
+                      label: const Text('Save Farm & Persist Boundary in PostGIS'),
                       onPressed: _saveFarm,
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
+            );
+
+    return Scaffold(
+      backgroundColor: RashkarColors.canvas,
+      appBar: AppBar(
+        title: Text(widget.farmToEdit != null ? 'Edit Farm Boundary' : 'Draw Farm Boundary'),
+        actions: [
+          _isSaving
+              ? const Padding(
+                  padding: EdgeInsets.all(14.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: RashkarColors.forest, strokeWidth: 2),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(Icons.check_rounded, size: 26),
+                  tooltip: 'Save Farm',
+                  onPressed: _saveFarm,
+                ),
         ],
       ),
+      body: isWide
+          ? Row(
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: mapPanel,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 5,
+                  child: formPanel,
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                Expanded(flex: 5, child: mapPanel),
+                Expanded(flex: 5, child: formPanel),
+              ],
+            ),
     );
   }
 }
@@ -1243,12 +2147,169 @@ class FarmDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+
+    final mapAndCharacteristics = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: RashkarColors.border),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            height: 260,
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: farm.centroid,
+                initialZoom: 16.0,
+                interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$kMapTilerApiKey',
+                  userAgentPackageName: 'com.cropnet.cropnet_mobile',
+                ),
+                PolygonLayer(
+                  polygons: [
+                    Polygon(
+                      points: farm.polygonPoints,
+                      color: const Color(0x55214E34),
+                      borderColor: RashkarColors.marigold,
+                      borderStrokeWidth: 3.0,
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: farm.centroid,
+                      child: const Icon(Icons.location_on, color: RashkarColors.marigold, size: 30),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        RashkarIndicatorListCard(
+          title: 'Plot Characteristics:',
+          rows: [
+            MapEntry(
+              'Administrative Location',
+              '${farm.village != null ? "${farm.village}, " : ""}${farm.taluka}, ${farm.district}',
+            ),
+            MapEntry(
+              'Centroid Coordinates',
+              '${farm.centroid.latitude.toStringAsFixed(5)}, ${farm.centroid.longitude.toStringAsFixed(5)}',
+            ),
+            MapEntry(
+              'Calculated Area',
+              '${farm.areaHectares.toStringAsFixed(2)} hectares (${farm.areaAcres.toStringAsFixed(2)} acres)',
+            ),
+            MapEntry('Irrigation Type', farm.irrigationType.toUpperCase()),
+            MapEntry('Water Source', farm.waterSource.toUpperCase()),
+            MapEntry('Boundary Points', '${farm.polygonPoints.length} vertices (GeoJSON Polygon)'),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SatelliteVegetationSummaryCard(farmId: farm.id),
+      ],
+    );
+
+    final actionsAndModules = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RashkarHeroBanner(
+          eyebrow: '${farm.taluka}, ${farm.district}',
+          title: farm.name,
+          subtitle: '${farm.areaHectares.toStringAsFixed(2)} ha (${farm.areaAcres.toStringAsFixed(2)} acres) · GeoJSON Verified Plot',
+          topRight: RashkarSeverityBadge.marigold('${farm.areaHectares.toStringAsFixed(2)} ha'),
+          footerChildren: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: RashkarColors.marigold,
+                foregroundColor: RashkarColors.ink,
+              ),
+              icon: const Icon(Icons.dashboard_customize_rounded, size: 20),
+              label: const Text('View Unified Farm Health Dashboard'),
+              onPressed: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                context.push(RoutePaths.farmHealthDashboardPath(farm.id));
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ResponsiveGrid(
+          mobileColumns: 1,
+          tabletColumns: 2,
+          desktopColumns: 2,
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _FarmModuleTile(
+              icon: Icons.psychology_outlined,
+              title: 'Run Crop Suitability Advisory',
+              subtitle: 'Rule-backed seasonal crop checks & AI explanation',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                appRouter.go(RoutePaths.advisory);
+              },
+            ),
+            _FarmModuleTile(
+              icon: Icons.science_outlined,
+              title: 'Analyse Soil Profile for this Boundary',
+              subtitle: 'ISRIC SoilGrids + Laboratory OCR ground truth',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                context.push(RoutePaths.soilDetailPath(farm.id));
+              },
+            ),
+            _FarmModuleTile(
+              icon: Icons.cloud_sync_outlined,
+              title: 'Weather & Climate Intelligence',
+              subtitle: 'Live forecast, hourly heat zones & NASA POWER',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                context.push(RoutePaths.weatherDetailPath(farm.id));
+              },
+            ),
+            _FarmModuleTile(
+              icon: Icons.water_drop_outlined,
+              title: 'Irrigation Water Quality & Sources',
+              subtitle: 'SAR / RSC indices & BIS irrigation rules',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                context.push(RoutePaths.farmWaterPath(farm.id));
+              },
+            ),
+            _FarmModuleTile(
+              icon: Icons.satellite_alt_outlined,
+              title: 'Sentinel-2 Satellite Vegetation Health',
+              subtitle: 'Class-4 NDVI / NDMI spatial raster & deltas',
+              onTap: () {
+                FarmRepository.instance.selectedFarmId = farm.id;
+                context.push(RoutePaths.farmVegetationPath(farm.id));
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _FarmSharedRiskIncomeCard(farmId: farm.id),
+      ],
+    );
+
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
         title: Text(farm.name),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit Farm Boundary',
             onPressed: () {
               Navigator.push(
                 context,
@@ -1265,224 +2326,32 @@ class FarmDetailScreen extends StatelessWidget {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline),
+            icon: const Icon(Icons.delete_outline, color: RashkarColors.extremeFg),
+            tooltip: 'Delete Farm',
             onPressed: () => _confirmDelete(context),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Mini Interactive Map Preview
-            SizedBox(
-              height: 240,
-              child: FlutterMap(
-                options: MapOptions(
-                  initialCenter: farm.centroid,
-                  initialZoom: 16.0,
-                  interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$kMapTilerApiKey',
-                    userAgentPackageName: 'com.cropnet.cropnet_mobile',
-                  ),
-                  PolygonLayer(
-                    polygons: [
-                      Polygon(
-                        points: farm.polygonPoints,
-                        color: const Color(0x664CAF50),
-                        borderColor: const Color(0xFF1B5E20),
-                        borderStrokeWidth: 3.0,
-                      ),
-                    ],
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: farm.centroid,
-                        child: const Icon(Icons.location_on, color: Colors.redAccent, size: 28),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
+      body: CenteredPageContainer(
+        maxWidth: 1240,
+        scrollable: true,
+        child: isWide
+            ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          farm.name,
-                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
-                        ),
-                      ),
-                      Chip(
-                        label: Text('${farm.areaHectares.toStringAsFixed(2)} ha', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        backgroundColor: const Color(0xFF2E7D32),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Administrative Location: ${farm.village != null ? "${farm.village}, " : ""}${farm.taluka}, ${farm.district}',
-                    style: const TextStyle(color: Colors.black87, fontSize: 14),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Centroid Coordinates: Lat ${farm.centroid.latitude.toStringAsFixed(5)}, Lon ${farm.centroid.longitude.toStringAsFixed(5)}',
-                    style: const TextStyle(color: Colors.black54, fontSize: 12),
-                  ),
-                  const Divider(height: 24),
-
-                  const Text('Plot Characteristics:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 6),
-                  _buildDetailRow('Calculated Area', '${farm.areaHectares.toStringAsFixed(2)} hectares (${farm.areaAcres.toStringAsFixed(2)} acres)'),
-                  _buildDetailRow('Irrigation Type', farm.irrigationType.toUpperCase()),
-                  _buildDetailRow('Water Source', farm.waterSource.toUpperCase()),
-                  _buildDetailRow('Boundary Points', '${farm.polygonPoints.length} vertices (GeoJSON Polygon)'),
-
+                  Expanded(flex: 5, child: mapAndCharacteristics),
+                  const SizedBox(width: 20),
+                  Expanded(flex: 6, child: actionsAndModules),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  actionsAndModules,
                   const SizedBox(height: 16),
-
-                  // Sentinel-2 Satellite Vegetation Summary Card
-                  SatelliteVegetationSummaryCard(farmId: farm.id),
-
-                  const SizedBox(height: 20),
-                  // Prominent Action: Unified Farm Health Dashboard (Phase 5.9B)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B5E20),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    icon: const Icon(Icons.dashboard_customize_rounded, size: 24),
-                    label: const Text(
-                      'View Unified Farm Health Dashboard',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.3),
-                    ),
-                    onPressed: () {
-                      FarmRepository.instance.selectedFarmId = farm.id;
-                      context.push(RoutePaths.farmHealthDashboardPath(farm.id));
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Prominent Action to run Crop Suitability Advisory
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                    icon: const Icon(Icons.psychology, size: 24),
-                    label: const Text(
-                      'Run Crop Suitability Advisory',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.3),
-                    ),
-                    onPressed: () {
-                      FarmRepository.instance.selectedFarmId = farm.id;
-                      appRouter.go(RoutePaths.advisory);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Action to trigger soil intelligence
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B5E20),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: const Icon(Icons.science),
-                    label: const Text('Analyse Soil Profile for this Boundary', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      FarmRepository.instance.selectedFarmId = farm.id;
-                      context.push(RoutePaths.soilDetailPath(farm.id));
-                    },
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Action to trigger weather & climate intelligence
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0277BD),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: const Icon(Icons.cloud_sync),
-                    label: const Text('Weather & Climate Intelligence', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      FarmRepository.instance.selectedFarmId = farm.id;
-                      context.push(RoutePaths.weatherDetailPath(farm.id));
-                    },
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Action to trigger irrigation water intelligence
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00695C),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: const Icon(Icons.water_drop),
-                    label: const Text('Irrigation Water Quality & Sources', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      FarmRepository.instance.selectedFarmId = farm.id;
-                      context.push(RoutePaths.farmWaterPath(farm.id));
-                    },
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Action to trigger satellite vegetation health monitoring
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF558B2F),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    icon: const Icon(Icons.satellite_alt),
-                    label: const Text('Sentinel-2 Satellite Vegetation Health', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: () {
-                      FarmRepository.instance.selectedFarmId = farm.id;
-                      context.push(RoutePaths.farmVegetationPath(farm.id));
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _FarmSharedRiskIncomeCard(farmId: farm.id),
+                  mapAndCharacteristics,
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.black54, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        ],
       ),
     );
   }
@@ -1496,7 +2365,7 @@ class FarmDetailScreen extends StatelessWidget {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: RashkarColors.extremeBar, foregroundColor: Colors.white),
             onPressed: () {
               Navigator.pop(ctx);
               onDelete(farm.id);
@@ -1507,6 +2376,68 @@ class FarmDetailScreen extends StatelessWidget {
             },
             child: const Text('Delete'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FarmModuleTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _FarmModuleTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RashkarCard(
+      padding: const EdgeInsets.all(14),
+      onTap: onTap,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: RashkarColors.mintBg,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 20, color: RashkarColors.forest),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: RashkarColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: RashkarColors.mutedInk,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right_rounded, size: 18, color: RashkarColors.mutedInk),
         ],
       ),
     );
@@ -1547,92 +2478,95 @@ class _FarmSharedRiskIncomeCardState extends State<_FarmSharedRiskIncomeCard> {
   @override
   Widget build(BuildContext context) {
     final ctx = _sharedContext;
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Color(0xFFC8E6C9)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.hub_outlined, color: Color(0xFF1B5E20), size: 20),
-                SizedBox(width: 8),
-                Text(
+    return RashkarCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: RashkarColors.mintBg,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.hub_outlined, color: RashkarColors.forest, size: 18),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
                   'Shared Plots, Heat Risk & Extra Income',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1B5E20)),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: RashkarColors.ink),
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (_loading)
+            const LinearProgressIndicator(color: RashkarColors.forest, backgroundColor: RashkarColors.mintBg)
+          else if (ctx != null) ...[
+            Text(
+              ctx.cropCycles.isEmpty
+                  ? 'Active Crops: None recorded yet (add once in Crop Heat Risk or Edit Farm).'
+                  : 'Active Crops: ${ctx.cropCycles.map((c) => "${c.cropCode.toUpperCase()} (${c.plotName})").join(", ")}',
+              style: const TextStyle(fontSize: 13, color: RashkarColors.ink),
             ),
-            const SizedBox(height: 8),
-            if (_loading)
-              const LinearProgressIndicator(color: Color(0xFF2E7D32))
-            else if (ctx != null) ...[
-              Text(
-                ctx.cropCycles.isEmpty
-                    ? 'Active Crops: None recorded yet (add once in Crop Heat Risk or Edit Farm).'
-                    : 'Active Crops: ${ctx.cropCycles.map((c) => "${c.cropCode.toUpperCase()} (${c.plotName})").join(", ")}',
-                style: const TextStyle(fontSize: 12, color: Colors.black87),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Worker Profile: ${ctx.farmerProfile.defaultWorkloadCategory ?? "not set"} · Budget: ₹${(ctx.resourceProfile.availableInvestmentInr ?? 0).round()}',
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            ] else
-              const Text(
-                'Use your registered farm details across Worker Heat Risk, Crop Heat Risk, and Extra Income.',
-                style: TextStyle(fontSize: 12, color: Colors.black54),
-              ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFD84315),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    FarmRepository.instance.selectFarm(widget.farmId);
-                    context.go('${RoutePaths.riskWorkerHeat}?farmId=${widget.farmId}');
-                  },
-                  icon: const Icon(Icons.engineering_outlined, size: 18),
-                  label: const Text('Worker Heat Risk'),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    FarmRepository.instance.selectFarm(widget.farmId);
-                    context.go('${RoutePaths.riskCropHeat}?farmId=${widget.farmId}');
-                  },
-                  icon: const Icon(Icons.eco_outlined, size: 18),
-                  label: const Text('Crop Heat Risk'),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B5E20),
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () {
-                    FarmRepository.instance.selectFarm(widget.farmId);
-                    context.go('${RoutePaths.extraIncome}?farmId=${widget.farmId}');
-                  },
-                  icon: const Icon(Icons.savings_outlined, size: 18),
-                  label: const Text('Extra Income'),
-                ),
-              ],
+            const SizedBox(height: 4),
+            Text(
+              'Worker Profile: ${ctx.farmerProfile.defaultWorkloadCategory ?? "not set"} · Budget: ₹${(ctx.resourceProfile.availableInvestmentInr ?? 0).round()}',
+              style: const TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
             ),
-          ],
-        ),
+          ] else
+            const Text(
+              'Use your registered farm details across Worker Heat Risk, Crop Heat Risk, and Extra Income.',
+              style: TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
+            ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RashkarColors.highBar,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  FarmRepository.instance.selectFarm(widget.farmId);
+                  context.go('${RoutePaths.riskWorkerHeat}?farmId=${widget.farmId}');
+                },
+                icon: const Icon(Icons.engineering_outlined, size: 18),
+                label: const Text('Worker Heat Risk'),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RashkarColors.forest,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  FarmRepository.instance.selectFarm(widget.farmId);
+                  context.go('${RoutePaths.riskCropHeat}?farmId=${widget.farmId}');
+                },
+                icon: const Icon(Icons.eco_outlined, size: 18),
+                label: const Text('Crop Heat Risk'),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: RashkarColors.marigold,
+                  foregroundColor: RashkarColors.ink,
+                ),
+                onPressed: () {
+                  FarmRepository.instance.selectFarm(widget.farmId);
+                  context.go('${RoutePaths.extraIncome}?farmId=${widget.farmId}');
+                },
+                icon: const Icon(Icons.savings_outlined, size: 18),
+                label: const Text('Extra Income'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1648,88 +2582,136 @@ class SoilIntelligenceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeFarmId = FarmRepository.instance.selectedFarmId;
+
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(title: const Text('Soil Intelligence')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      body: CenteredPageContainer(
+        maxWidth: 1120,
+        scrollable: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF3E0),
-                border: Border.all(color: const Color(0xFFFFB74D)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded, color: Color(0xFFE65100), size: 28),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Map-Derived Estimates: Values are derived from digital geospatial soil models (ISRIC SoilGrids 2.0). They are NOT laboratory test results.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFFBF360C), fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
+            const RashkarHeroBanner(
+              eyebrow: 'SOIL INTELLIGENCE',
+              title: 'Check Your Soil',
+              subtitle: 'Understand your soil and see available test results.',
             ),
             const SizedBox(height: 16),
-            const Text('Registered Farms Available for Analysis:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
+            const RashkarNoticeCallout(
+              title: 'Please note',
+              message: 'Map-Derived Estimates: Values are derived from digital geospatial soil models (ISRIC SoilGrids 2.0). They are NOT laboratory test results. Upload your laboratory test report for exact fertilizer doses.',
+              icon: Icons.warning_amber_rounded,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Select a farm to view soil details:',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: RashkarColors.ink),
+            ),
+            const SizedBox(height: 12),
             if (farms.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32.0),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(Icons.terrain_outlined, size: 48, color: Colors.grey),
-                      const SizedBox(height: 12),
-                      const Text('No farms registered yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 6),
-                      const Text('Please register a farm boundary first to inspect soil parameters.', style: TextStyle(color: Colors.black54)),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1B5E20),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: const Icon(Icons.add_location_alt),
-                        label: const Text('Register New Farm'),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (ctx) => AddEditFarmScreen(
-                                onSave: (farm) => FarmRepository.instance.addFarm(farm),
-                              ),
+              RashkarCard(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+                child: Column(
+                  children: [
+                    const Icon(Icons.terrain_outlined, size: 48, color: RashkarColors.mutedInk),
+                    const SizedBox(height: 12),
+                    const Text('No farms registered yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    const SizedBox(height: 6),
+                    const Text('Please register a farm boundary first to inspect soil parameters.', style: TextStyle(color: RashkarColors.mutedInk)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_location_alt),
+                      label: const Text('Register New Farm'),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (ctx) => AddEditFarmScreen(
+                              onSave: (farm) => FarmRepository.instance.addFarm(farm),
                             ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               )
             else
-              ...farms.map((f) => Card(
-                    elevation: 1.5,
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFFE8F5E9),
-                        child: Icon(Icons.terrain, color: Color(0xFF1B5E20)),
-                      ),
-                      title: Text(f.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${f.taluka} • ${f.areaHectares.toStringAsFixed(2)} ha (${f.areaAcres.toStringAsFixed(2)} ac)'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                      onTap: () {
-                        FarmRepository.instance.selectedFarmId = f.id;
-                        context.push(RoutePaths.soilDetailPath(f.id));
-                      },
+              ResponsiveGrid(
+                mobileColumns: 1,
+                tabletColumns: 2,
+                desktopColumns: 2,
+                spacing: 12,
+                runSpacing: 12,
+                children: farms.map((f) {
+                  final isActive = f.id == activeFarmId;
+                  return RashkarCard(
+                    selected: isActive,
+                    borderColor: isActive ? RashkarColors.forest : null,
+                    borderWidth: isActive ? 1.5 : 1.0,
+                    padding: const EdgeInsets.all(16),
+                    onTap: () {
+                      FarmRepository.instance.selectedFarmId = f.id;
+                      context.push(RoutePaths.soilDetailPath(f.id));
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isActive ? RashkarColors.softMint : RashkarColors.mintBg,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.terrain_outlined, color: RashkarColors.forest),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      f.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: RashkarColors.ink),
+                                    ),
+                                  ),
+                                  if (isActive) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: RashkarColors.mintBg,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: RashkarColors.forest.withValues(alpha: 0.3)),
+                                      ),
+                                      child: const Text(
+                                        'ACTIVE',
+                                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: RashkarColors.forest),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${f.taluka} • ${f.areaHectares.toStringAsFixed(2)} ha (${f.areaAcres.toStringAsFixed(2)} ac)',
+                                style: const TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: RashkarColors.mutedInk),
+                      ],
                     ),
-                  )),
+                  );
+                }).toList(),
+              ),
           ],
         ),
       ),
@@ -1968,7 +2950,23 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
     final soil = _getSoilData(widget.farm.taluka, _selectedDepth);
     final isSmallParcel = widget.farm.areaHectares < 6.25;
 
+    // Numerical soil parameters
+    final double phVal = _soilProfile?.ph?.value ??
+        _latestConfirmedReport?.getEffectiveValue('soil_ph') ??
+        (soil['ph'] as num).toDouble();
+    final bool isLabPh = (_soilProfile?.ph?.verificationStatus == VerificationStatus.laboratoryVerified ||
+        _latestConfirmedReport?.getEffectiveValue('soil_ph') != null);
+
+    // SOC calculation - always consistent in percentage
+    final double rawSoc = _soilProfile?.organicCarbon?.value ??
+        _latestConfirmedReport?.getEffectiveValue('organic_carbon') ??
+        (soil['soc'] as num).toDouble();
+    final bool isLabSoc = (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified ||
+        _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null);
+    final double socPercent = isLabSoc ? rawSoc : (rawSoc / 10.0);
+
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
         title: Text('${widget.farm.name} — Soil Intelligence'),
         actions: [
@@ -1987,9 +2985,10 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+          ? const Center(child: CircularProgressIndicator(color: RashkarColors.forest))
+          : CenteredPageContainer(
+              maxWidth: 1120,
+              scrollable: true,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -2020,374 +3019,494 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
                       ),
                     ),
 
-                  // 1. Mandatory Farmer Disclaimer Banner
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3E0),
-                      border: Border.all(color: const Color(0xFFFFB74D), width: 1.5),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Row(
+                  // 1. Farmer-First Finding Banner & Single Clear Action
+                  RashkarCard(
+                    padding: const EdgeInsets.all(18),
+                    borderColor: _isLabConfirmed ? RashkarColors.forest : const Color(0xFFFFB74D),
+                    backgroundColor: _isLabConfirmed ? RashkarColors.mintBg : const Color(0xFFFFFBF0),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.gavel, color: Color(0xFFE65100), size: 24),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'These results are estimates derived from geospatial soil datasets. They are not laboratory soil test results. Actual farm soil conditions may vary.',
-                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFFBF360C), height: 1.3),
+                        Text(
+                          "YOUR FARM'S SOIL · ${widget.farm.taluka}, Pune, Maharashtra",
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                            color: _isLabConfirmed ? RashkarColors.forest : const Color(0xFF8A5300),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              _isLabConfirmed ? Icons.verified_outlined : Icons.info_outline,
+                              color: _isLabConfirmed ? RashkarColors.forest : const Color(0xFFB76E00),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "Your Farm's Soil — ${widget.farm.name}",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                  color: _isLabConfirmed ? RashkarColors.forest : const Color(0xFF8A5300),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: _isLabConfirmed ? const Color(0xFFC8E6C9) : const Color(0xFFFFECC8),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                _isLabConfirmed ? 'Lab Verified' : 'Regional Estimate',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: _isLabConfirmed ? const Color(0xFF1B5E20) : const Color(0xFF8A5300),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _isLabConfirmed
+                              ? 'Your soil has verified laboratory test results on record for tailored fertilizer and crop planning.'
+                              : 'We have estimated information about your soil, but a laboratory test is needed before giving nutrient-specific fertilizer guidance.',
+                          style: const TextStyle(fontSize: 13.5, color: RashkarColors.ink, height: 1.4),
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: RashkarColors.forest,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            icon: Icon(_isLabConfirmed ? Icons.visibility_outlined : Icons.upload_file_outlined, size: 18),
+                            label: Text(
+                              _isLabConfirmed ? 'View Confirmed Soil Test' : 'Upload Soil Test Report',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                            ),
+                            onPressed: () {
+                              if (_isLabConfirmed) {
+                                context.push(RoutePaths.soilLabHistoryPath(widget.farm.id));
+                              } else {
+                                context.push(RoutePaths.soilLabUploadPath(widget.farm.id));
+                              }
+                            },
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
 
-                  // 2. Spatial Representativeness Warning (if parcel < 6.25 ha)
-                  if (isSmallParcel)
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE3F2FD),
-                        border: Border.all(color: const Color(0xFF90CAF9)),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline, color: Color(0xFF1976D2), size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Spatial Notice: Farm area (${widget.farm.areaHectares.toStringAsFixed(2)} ha) is smaller than the 250m raster cell size (6.25 ha). Estimated values reflect average conditions for the 250m pixel encompassing this farm.',
-                              style: const TextStyle(fontSize: 11.5, color: Color(0xFF0D47A1)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // 3. Farm Boundary & Location Summary
-                  Card(
-                    elevation: 1,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(widget.farm.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
-                              Chip(
-                                label: Text('${widget.farm.areaHectares.toStringAsFixed(2)} ha', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                                backgroundColor: const Color(0xFF2E7D32),
-                                padding: EdgeInsets.zero,
-                              ),
-                            ],
-                          ),
-                          Text('Region: ${widget.farm.village != null ? "${widget.farm.village}, " : ""}${widget.farm.taluka}, Pune, Maharashtra', style: const TextStyle(color: Colors.black54, fontSize: 12)),
-                          Text('Centroid: Lat ${widget.farm.centroid.latitude.toStringAsFixed(5)}, Lon ${widget.farm.centroid.longitude.toStringAsFixed(5)}', style: const TextStyle(color: Colors.black45, fontSize: 11)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // 4. Depth Interval Selector
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  // 2. Simple Glance Cards
+                  ResponsiveGrid(
+                    mobileColumns: 2,
+                    tabletColumns: 2,
+                    desktopColumns: 4,
+                    spacing: 10,
+                    runSpacing: 10,
                     children: [
-                      const Text('Depth Interval:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: '0-5cm', label: Text('0–5 cm (Topsoil)')),
-                          ButtonSegment(value: '5-15cm', label: Text('5–15 cm (Subsoil)')),
-                        ],
-                        selected: {_selectedDepth},
-                        onSelectionChanged: (val) {
-                          setState(() => _selectedDepth = val.first);
-                          _loadSoilProfile();
-                        },
+                      _buildGlanceCard(
+                        icon: Icons.science_outlined,
+                        label: 'Soil pH (H2O)',
+                        value: '${phVal.toStringAsFixed(1)} pH',
+                        status: '${phVal < 6.5 ? "Slightly acidic" : (phVal <= 7.5 ? "Near neutral" : "Alkaline")} — ${isLabPh ? "verified by lab" : "estimated from mapping"}',
+                        accentColor: Colors.green.shade700,
+                      ),
+                      _buildGlanceCard(
+                        icon: Icons.eco_outlined,
+                        label: 'Organic Carbon',
+                        value: '${socPercent.toStringAsFixed(2)}%',
+                        status: '${socPercent >= 1.5 ? "Good organic matter" : (socPercent >= 0.75 ? "Medium organic matter" : "Low organic matter")} — ${isLabSoc ? "lab verified" : "estimated"}',
+                        accentColor: const Color(0xFF5D4037),
+                      ),
+                      _buildGlanceCard(
+                        icon: Icons.grass_outlined,
+                        label: 'Available Nutrients',
+                        value: _isLabConfirmed ? 'Verified on File' : 'Lab Test Needed',
+                        status: _isLabConfirmed ? 'Available N, P, K calibrated' : 'Lab test needed for available N, P, K',
+                        accentColor: _isLabConfirmed ? RashkarColors.forest : const Color(0xFFC62828),
+                      ),
+                      _buildGlanceCard(
+                        icon: Icons.assignment_turned_in_outlined,
+                        label: 'Lab Test Status',
+                        value: _isLabConfirmed ? 'Confirmed' : 'No Report Yet',
+                        status: _isLabConfirmed ? (_latestConfirmedReport?.laboratoryName ?? 'Accredited Lab') : 'Upload to unlock exact doses',
+                        accentColor: _isLabConfirmed ? RashkarColors.forest : const Color(0xFFE65100),
                       ),
                     ],
                   ),
                   const SizedBox(height: 14),
 
-                  // 5. Physical Soil Properties & USDA Texture Class
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
+                  // 3. Consolidated Nutrient Status Statement
+                  if (_isLabConfirmed)
+                    _buildUnlockedNutrientCard(context)
+                  else
+                    RashkarCard(
+                      padding: const EdgeInsets.all(16),
+                      borderColor: const Color(0xFFFFB74D),
+                      backgroundColor: const Color(0xFFFFFDF7),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          const Row(
                             children: [
-                              const Text('Soil Physical Characteristics', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF4E342E),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                              Icon(Icons.notification_important_outlined, color: Color(0xFFE65100), size: 22),
+                              SizedBox(width: 8),
+                              Expanded(
                                 child: Text(
-                                  'USDA: ${soil["texture_class"]}',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                  'Available Nutrients (NPK) — Lab Test Required',
+                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: Color(0xFFBF360C)),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 10),
-                          _buildTextureBar('Sand Fraction (50-2000 µm)', soil['sand'], const Color(0xFFFFA726)),
-                          _buildTextureBar('Silt Fraction (2-50 µm)', soil['silt'], const Color(0xFF78909C)),
-                          _buildTextureBar('Clay Fraction (<2 µm)', soil['clay'], const Color(0xFF8D6E63)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Text('Total Nitrogen (N)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: RashkarColors.ink)),
+                              const SizedBox(width: 8),
+                              Text('${soil["total_n"]} g/kg (Estimated)', style: const TextStyle(fontSize: 12, color: RashkarColors.mutedInk)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Available Nitrogen (N), Available Phosphorus (P2O5), and Available Potassium (K2O): Physical soil test required. Modelled estimates cannot be used for fertilizer dosing.',
+                            style: TextStyle(fontSize: 13, color: RashkarColors.ink, height: 1.35),
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: RashkarColors.forest,
+                              side: const BorderSide(color: RashkarColors.forest),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.upload_file, size: 17),
+                            label: const Text('Upload Soil Test Report (Physical Test)'),
+                            onPressed: () => context.push(RoutePaths.soilLabUploadPath(widget.farm.id)),
+                          ),
                         ],
                       ),
                     ),
-                  ),
                   const SizedBox(height: 14),
 
-                  // 6. Chemical & Biological Properties
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  // 4. Expandable Technical Details Section
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.tune_outlined, color: RashkarColors.forest, size: 20),
+                    title: const Text(
+                      'More Soil Details',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: RashkarColors.forest),
+                    ),
+                    subtitle: const Text(
+                      'Depth interval, USDA texture percentages, CEC, and scientific source data',
+                      style: TextStyle(fontSize: 11.5, color: RashkarColors.mutedInk),
+                    ),
+                    children: [
+                      const SizedBox(height: 8),
+                      // Depth Interval Selector
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Soil Chemical & Biological Properties', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
-                              if (_isLabConfirmed)
-                                _buildProvenanceBadge(
-                                  label: 'LABORATORY MEASURED — CONFIRMED',
-                                  color: const Color(0xFF1B5E20),
-                                  bgColor: const Color(0xFFE8F5E9),
-                                  borderColor: const Color(0xFF81C784),
-                                  icon: Icons.check_circle_outline,
-                                )
-                              else
-                                _buildProvenanceBadge(
-                                  label: 'SOILGRIDS — MODELLED ESTIMATE',
-                                  color: const Color(0xFFE65100),
-                                  bgColor: const Color(0xFFFFF3E0),
-                                  borderColor: const Color(0xFFFFB74D),
-                                  icon: Icons.public,
-                                ),
+                          const Text('Depth Interval:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(value: '0-5cm', label: Text('0–5 cm (Topsoil)')),
+                              ButtonSegment(value: '5-15cm', label: Text('5–15 cm (Subsoil)')),
                             ],
+                            selected: {_selectedDepth},
+                            onSelectionChanged: (val) {
+                              setState(() => _selectedDepth = val.first);
+                              _loadSoilProfile();
+                            },
                           ),
-                          const SizedBox(height: 10),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
 
-                          _buildParamRow(
-                            'Soil pH (H2O)',
-                            ((_soilProfile?.ph?.value ?? _latestConfirmedReport?.getEffectiveValue('soil_ph') ?? (soil['ph'] as num).toDouble())).toStringAsFixed(2),
-                            'pH',
-                            (_soilProfile?.ph?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('soil_ph') != null) ? null : '± ${soil["ph_unc"]}',
-                            ((_soilProfile?.ph?.value ?? (soil['ph'] as num).toDouble()) < 6.5) ? 'Slightly Acidic' : (((_soilProfile?.ph?.value ?? (soil['ph'] as num).toDouble()) <= 7.5) ? 'Neutral' : 'Alkaline'),
-                            Colors.green.shade700,
-                            provenanceBadge: (_soilProfile?.ph?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('soil_ph') != null)
-                                ? 'LABORATORY MEASURED'
-                                : 'SOILGRIDS ESTIMATE',
-                            provenanceColor: (_soilProfile?.ph?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('soil_ph') != null)
-                                ? const Color(0xFF1B5E20)
-                                : const Color(0xFFE65100),
-                            provenanceBgColor: (_soilProfile?.ph?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('soil_ph') != null)
-                                ? const Color(0xFFE8F5E9)
-                                : const Color(0xFFFFF3E0),
-                            provenanceBorderColor: (_soilProfile?.ph?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('soil_ph') != null)
-                                ? const Color(0xFF81C784)
-                                : const Color(0xFFFFB74D),
-                            secondaryModelledNote: (_soilProfile?.additionalParameters['isric_ph']?.value != null)
-                                ? 'ISRIC SoilGrids 2.0 modeled baseline: ${_soilProfile!.additionalParameters['isric_ph']!.value!.toStringAsFixed(2)} pH'
-                                : null,
-                          ),
-                          const Divider(height: 16),
-
-                          _buildParamRow(
-                            'Soil Organic Carbon (SOC)',
-                            ((_soilProfile?.organicCarbon?.value ?? _latestConfirmedReport?.getEffectiveValue('organic_carbon') ?? (soil['soc'] as num).toDouble()) /
-                                    ((_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null) ? 1.0 : 10.0))
-                                .toStringAsFixed(2),
-                            (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null) ? '%' : 'g/kg',
-                            (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null) ? null : '± ${soil["soc_unc"]} g/kg',
-                            ((_soilProfile?.organicCarbon?.value ?? (soil['soc'] as num).toDouble()) >= 15.0) ? 'High Organic Content' : 'Moderate',
-                            const Color(0xFF5D4037),
-                            provenanceBadge: (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null)
-                                ? 'LABORATORY MEASURED'
-                                : 'SOILGRIDS ESTIMATE',
-                            provenanceColor: (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null)
-                                ? const Color(0xFF1B5E20)
-                                : const Color(0xFFE65100),
-                            provenanceBgColor: (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null)
-                                ? const Color(0xFFE8F5E9)
-                                : const Color(0xFFFFF3E0),
-                            provenanceBorderColor: (_soilProfile?.organicCarbon?.verificationStatus == VerificationStatus.laboratoryVerified || _latestConfirmedReport?.getEffectiveValue('organic_carbon') != null)
-                                ? const Color(0xFF81C784)
-                                : const Color(0xFFFFB74D),
-                            secondaryModelledNote: (_soilProfile?.additionalParameters['isric_soc']?.value != null)
-                                ? 'ISRIC SoilGrids baseline: ${((_soilProfile!.additionalParameters['isric_soc']!.value!) / 10.0).toStringAsFixed(2)} %'
-                                : null,
-                          ),
-                          const Divider(height: 16),
-
-                          // Electrical Conductivity (EC)
-                          _buildParamRow(
-                            'Electrical Conductivity (EC)',
-                            (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity'))!.toStringAsFixed(2)
-                                : 'Not tested',
-                            (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null ? 'dS/m' : '',
-                            null,
-                            (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? (((_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity'))! < 1.0)
-                                    ? 'Non-Saline (Optimal)'
-                                    : 'Slightly Saline')
-                                : 'Physical lab test required',
-                            (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? const Color(0xFF00796B)
-                                : const Color(0xFFC62828),
-                            provenanceBadge: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? 'LABORATORY MEASURED'
-                                : 'NOT AVAILABLE — PHYSICAL TEST REQUIRED',
-                            provenanceColor: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? const Color(0xFF1B5E20)
-                                : const Color(0xFFC62828),
-                            provenanceBgColor: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? const Color(0xFFE8F5E9)
-                                : const Color(0xFFFFEBEE),
-                            provenanceBorderColor: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
-                                ? const Color(0xFF81C784)
-                                : const Color(0xFFEF9A9A),
-                          ),
-                          const Divider(height: 16),
-
-                          // Total Nitrogen with bold scientific notice
-                          Column(
+                      // Physical Soil Properties & USDA Texture Class
+                      Card(
+                        elevation: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.all(14.0),
+                          child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Row(
-                                    children: [
-                                      const Text('Total Nitrogen (N)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                      const SizedBox(width: 6),
-                                      _buildProvenanceBadge(
-                                        label: 'SOILGRIDS — MODELLED ESTIMATE',
-                                        color: const Color(0xFFE65100),
-                                        bgColor: const Color(0xFFFFF3E0),
-                                        borderColor: const Color(0xFFFFB74D),
-                                      ),
-                                    ],
+                                  const Text('Soil Physical Characteristics', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF4E342E),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'USDA: ${soil["texture_class"]}',
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                    ),
                                   ),
-                                  Text('${soil["total_n"]} g/kg', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1B5E20))),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF8E1),
-                                  border: Border.all(color: const Color(0xFFFFD54F)),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.notification_important, color: Color(0xFFF57F17), size: 18),
-                                    SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'Scientific Guardrail: Total Nitrogen is NOT available mineral nitrogen (NH4+/NO3-). It cannot be used for fertilizer dosing without laboratory testing.',
-                                        style: TextStyle(fontSize: 11, color: Color(0xFFE65100), fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              const SizedBox(height: 10),
+                              _buildTextureBar('Sand Fraction (50-2000 µm)', soil['sand'], const Color(0xFFFFA726)),
+                              _buildTextureBar('Silt Fraction (2-50 µm)', soil['silt'], const Color(0xFF78909C)),
+                              _buildTextureBar('Clay Fraction (<2 µm)', soil['clay'], const Color(0xFF8D6E63)),
                             ],
                           ),
-                          const Divider(height: 16),
-
-                          _buildParamRow(
-                            'Cation Exchange Capacity (CEC)',
-                            '${soil["cec"]}',
-                            'cmol(c)/kg',
-                            null,
-                            soil["cec"] >= 30.0 ? 'High Nutrient Retention' : 'Moderate Retention',
-                            const Color(0xFF00796B),
-                            provenanceBadge: 'SOILGRIDS ESTIMATE',
-                            provenanceColor: const Color(0xFFE65100),
-                            provenanceBgColor: const Color(0xFFFFF3E0),
-                            provenanceBorderColor: const Color(0xFFFFB74D),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
+                      const SizedBox(height: 12),
 
-                  // 7. Strict Nutrients Transparency — Unlocked if lab confirmed, else locked with safeguard
-                  if (_isLabConfirmed)
-                    _buildUnlockedNutrientCard(context)
-                  else
-                    _buildLockedNutrientCard(context),
-                  const SizedBox(height: 14),
-
-                  // 8. Dual-Source Scientific Comparison Matrix
-                  LabVsSoilgridsComparisonWidget(
-                    labReport: _latestConfirmedReport,
-                    soilgridsProfile: _soilProfile,
-                    onUploadReport: () {
-                      context.push(RoutePaths.soilLabUploadPath(widget.farm.id));
-                    },
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 9. Micronutrient Ground Truth Panel (when available)
-                  if (_isLabConfirmed) ...[
-                    _buildMicronutrientPanel(),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // 10. Scientific Provenance Card
-                  Card(
-                    elevation: 1,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      // Chemical & Biological Properties
+                      Card(
+                        elevation: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.all(14.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Data Provenance & Scientific Attribution', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                              _buildProvenanceBadge(
-                                label: _isLabConfirmed ? 'DUAL-SOURCE SYNC ACTIVE' : 'GEOSPATIAL BASELINE',
-                                color: _isLabConfirmed ? const Color(0xFF1B5E20) : const Color(0xFF1565C0),
-                                bgColor: _isLabConfirmed ? const Color(0xFFE8F5E9) : const Color(0xFFE3F2FD),
-                                borderColor: _isLabConfirmed ? const Color(0xFF81C784) : const Color(0xFF90CAF9),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Soil Chemical & Biological Properties', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
+                                  if (_isLabConfirmed)
+                                    _buildProvenanceBadge(
+                                      label: 'LABORATORY MEASURED — CONFIRMED',
+                                      color: const Color(0xFF1B5E20),
+                                      bgColor: const Color(0xFFE8F5E9),
+                                      borderColor: const Color(0xFF81C784),
+                                      icon: Icons.check_circle_outline,
+                                    )
+                                  else
+                                    _buildProvenanceBadge(
+                                      label: 'SOILGRIDS — MODELLED ESTIMATE',
+                                      color: const Color(0xFFE65100),
+                                      bgColor: const Color(0xFFFFF3E0),
+                                      borderColor: const Color(0xFFFFB74D),
+                                      icon: Icons.public,
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+
+                              _buildParamRow(
+                                'Soil pH (H2O)',
+                                phVal.toStringAsFixed(2),
+                                'pH',
+                                isLabPh ? null : '± ${soil["ph_unc"]}',
+                                phVal < 6.5 ? 'Slightly Acidic' : (phVal <= 7.5 ? 'Neutral' : 'Alkaline'),
+                                Colors.green.shade700,
+                                provenanceBadge: isLabPh ? 'LABORATORY MEASURED' : 'SOILGRIDS ESTIMATE',
+                                provenanceColor: isLabPh ? const Color(0xFF1B5E20) : const Color(0xFFE65100),
+                                provenanceBgColor: isLabPh ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+                                provenanceBorderColor: isLabPh ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
+                                secondaryModelledNote: (_soilProfile?.additionalParameters['isric_ph']?.value != null)
+                                    ? 'ISRIC SoilGrids 2.0 modeled baseline: ${_soilProfile!.additionalParameters['isric_ph']!.value!.toStringAsFixed(2)} pH'
+                                    : null,
+                              ),
+                              const Divider(height: 16),
+
+                              _buildParamRow(
+                                'Soil Organic Carbon (SOC)',
+                                socPercent.toStringAsFixed(2),
+                                '%',
+                                isLabSoc ? null : '± ${(soil["soc_unc"] as num).toDouble() / 10.0} %',
+                                socPercent >= 1.5 ? 'Good Organic Content' : (socPercent >= 0.75 ? 'Moderate' : 'Low'),
+                                const Color(0xFF5D4037),
+                                provenanceBadge: isLabSoc ? 'LABORATORY MEASURED' : 'SOILGRIDS ESTIMATE',
+                                provenanceColor: isLabSoc ? const Color(0xFF1B5E20) : const Color(0xFFE65100),
+                                provenanceBgColor: isLabSoc ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+                                provenanceBorderColor: isLabSoc ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
+                                secondaryModelledNote: (_soilProfile?.additionalParameters['isric_soc']?.value != null)
+                                    ? 'ISRIC SoilGrids baseline: ${((_soilProfile!.additionalParameters['isric_soc']!.value!) / 10.0).toStringAsFixed(2)} %'
+                                    : null,
+                              ),
+                              const Divider(height: 16),
+
+                              // Electrical Conductivity (EC)
+                              _buildParamRow(
+                                'Electrical Conductivity (EC)',
+                                (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity'))!.toStringAsFixed(2)
+                                    : 'Not tested',
+                                (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null ? 'dS/m' : '',
+                                null,
+                                (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? (((_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity'))! < 1.0)
+                                        ? 'Non-Saline (Optimal)'
+                                        : 'Slightly Saline')
+                                    : 'Physical lab test required',
+                                (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? const Color(0xFF00796B)
+                                    : const Color(0xFFC62828),
+                                provenanceBadge: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? 'LABORATORY MEASURED'
+                                    : 'NOT AVAILABLE — PHYSICAL TEST REQUIRED',
+                                provenanceColor: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? const Color(0xFF1B5E20)
+                                    : const Color(0xFFC62828),
+                                provenanceBgColor: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? const Color(0xFFE8F5E9)
+                                    : const Color(0xFFFFEBEE),
+                                provenanceBorderColor: (_soilProfile?.additionalParameters['electrical_conductivity']?.value ?? _latestConfirmedReport?.getEffectiveValue('electrical_conductivity')) != null
+                                    ? const Color(0xFF81C784)
+                                    : const Color(0xFFEF9A9A),
+                              ),
+                              const Divider(height: 16),
+
+                              // Total Nitrogen with scientific notice
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const Text('Total Nitrogen (N)', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                          const SizedBox(width: 6),
+                                          _buildProvenanceBadge(
+                                            label: 'SOILGRIDS — MODELLED ESTIMATE',
+                                            color: const Color(0xFFE65100),
+                                            bgColor: const Color(0xFFFFF3E0),
+                                            borderColor: const Color(0xFFFFB74D),
+                                          ),
+                                        ],
+                                      ),
+                                      Text('${soil["total_n"]} g/kg', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1B5E20))),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF8E1),
+                                      border: Border.all(color: const Color(0xFFFFD54F)),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.notification_important, color: Color(0xFFF57F17), size: 18),
+                                        SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            'Scientific Guardrail: Total Nitrogen is NOT available mineral nitrogen (NH4+/NO3-). It cannot be used for fertilizer dosing without laboratory testing.',
+                                            style: TextStyle(fontSize: 11, color: Color(0xFFE65100), fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 16),
+
+                              _buildParamRow(
+                                'Cation Exchange Capacity (CEC)',
+                                '${soil["cec"]}',
+                                'cmol(c)/kg',
+                                null,
+                                (soil["cec"] as num).toDouble() >= 30.0 ? 'High Nutrient Retention' : 'Moderate Retention',
+                                const Color(0xFF00796B),
+                                provenanceBadge: 'SOILGRIDS ESTIMATE',
+                                provenanceColor: const Color(0xFFE65100),
+                                provenanceBgColor: const Color(0xFFFFF3E0),
+                                provenanceBorderColor: const Color(0xFFFFB74D),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
-                          _buildProvenanceRow('Primary Baseline', 'ISRIC SoilGrids 2.0 | 250m Resolution | 2020'),
-                          if (_isLabConfirmed)
-                            _buildProvenanceRow(
-                              'Physical Lab Truth',
-                              '${_latestConfirmedReport?.laboratoryName ?? "Accredited Laboratory"} (${_latestConfirmedReport?.sampleDepth ?? "0-15cm"})',
-                            ),
-                          _buildProvenanceRow('Standard Protocol', 'OGC WCS 2.0.1 + ICAR Analytical Standards'),
-                          _buildProvenanceRow('Decision Authority', 'Deterministic Decision Engine (MPKV Rahuri / ICAR)'),
-                          _buildProvenanceRow('Depth Interval', _selectedDepth),
-                          _buildProvenanceRow('Licensing', 'Creative Commons Attribution 4.0 (CC BY 4.0)'),
-                          _buildProvenanceRow('Institution', 'ISRIC World Soil Information & Local Farm Testing Lab'),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+
+                      // Dual-Source Scientific Comparison Matrix
+                      LabVsSoilgridsComparisonWidget(
+                        labReport: _latestConfirmedReport,
+                        soilgridsProfile: _soilProfile,
+                        onUploadReport: () {
+                          context.push(RoutePaths.soilLabUploadPath(widget.farm.id));
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Micronutrient Ground Truth Panel (when available)
+                      if (_isLabConfirmed) ...[
+                        _buildMicronutrientPanel(),
+                        const SizedBox(height: 12),
+                      ],
+
+                      // Data Provenance & Attribution Card
+                      Card(
+                        elevation: 1,
+                        child: Padding(
+                          padding: const EdgeInsets.all(14.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Data Provenance & Scientific Attribution', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                                  _buildProvenanceBadge(
+                                    label: _isLabConfirmed ? 'DUAL-SOURCE SYNC ACTIVE' : 'GEOSPATIAL BASELINE',
+                                    color: _isLabConfirmed ? const Color(0xFF1B5E20) : const Color(0xFF1565C0),
+                                    bgColor: _isLabConfirmed ? const Color(0xFFE8F5E9) : const Color(0xFFE3F2FD),
+                                    borderColor: _isLabConfirmed ? const Color(0xFF81C784) : const Color(0xFF90CAF9),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              _buildProvenanceRow('Primary Baseline', 'ISRIC SoilGrids 2.0 | 250m Resolution | 2020'),
+                              if (_isLabConfirmed)
+                                _buildProvenanceRow(
+                                  'Physical Lab Truth',
+                                  '${_latestConfirmedReport?.laboratoryName ?? "Accredited Laboratory"} (${_latestConfirmedReport?.sampleDepth ?? "0-15cm"})',
+                                ),
+                              _buildProvenanceRow('Standard Protocol', 'OGC WCS 2.0.1 + ICAR Analytical Standards'),
+                              _buildProvenanceRow('Decision Authority', 'Deterministic Decision Engine (MPKV Rahuri / ICAR)'),
+                              _buildProvenanceRow('Depth Interval', _selectedDepth),
+                              _buildProvenanceRow('Licensing', 'Creative Commons Attribution 4.0 (CC BY 4.0)'),
+                              _buildProvenanceRow('Institution', 'ISRIC World Soil Information & Local Farm Testing Lab'),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (isSmallParcel) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE3F2FD),
+                            border: Border.all(color: const Color(0xFF90CAF9)),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Color(0xFF1976D2), size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Spatial Notice: Farm area (${widget.farm.areaHectares.toStringAsFixed(2)} ha) is smaller than the 250m raster cell size (6.25 ha). Estimated values reflect average conditions for the 250m pixel encompassing this farm.',
+                                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF0D47A1)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 20),
 
@@ -2403,6 +3522,48 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildGlanceCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String status,
+    required Color accentColor,
+  }) {
+    return RashkarCard(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 18, color: accentColor),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: RashkarColors.mutedInk),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: accentColor),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            status,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, color: RashkarColors.mutedInk, height: 1.2),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2671,97 +3832,6 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
     );
   }
 
-  Widget _buildLockedNutrientCard(BuildContext context) {
-    return Card(
-      elevation: 2,
-      color: const Color(0xFFFFF8E1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFFFFB74D), width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                _buildProvenanceBadge(
-                  label: 'NOT AVAILABLE — PHYSICAL TEST REQUIRED',
-                  color: const Color(0xFFC62828),
-                  bgColor: const Color(0xFFFFEBEE),
-                  borderColor: const Color(0xFFEF9A9A),
-                  icon: Icons.shield_outlined,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEE),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFEF9A9A)),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.shield_outlined, color: Color(0xFFC62828), size: 24),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Lab Soil Test Required — not inferred from digital map',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13.5,
-                            color: Color(0xFFC62828),
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Digital raster maps (ISRIC SoilGrids) model total elemental nitrogen and physical soil properties. They CANNOT quantify bioavailable plant nutrients (NH4+, NO3-, Olsen P, or available K). In accordance with strict agronomic safeguards, digital map extracts must never fabricate available NPK from total nitrogen.',
-                          style: TextStyle(fontSize: 11.5, color: Color(0xFFB71C1C), height: 1.3),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildUnavailableRow('Available Nitrogen (N)', 'Physical soil test required'),
-            _buildUnavailableRow('Available Phosphorus (P2O5)', 'Physical soil test required'),
-            _buildUnavailableRow('Available Potassium (K2O)', 'Physical soil test required'),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1B5E20),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                icon: const Icon(Icons.upload_file, size: 20),
-                label: const Text(
-                  'Upload Soil Test Report to Unlock NPK',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                onPressed: () {
-                  context.push(RoutePaths.soilLabWorkspacePath(widget.farm.id));
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildMicronutrientPanel() {
     final zn = _soilProfile?.additionalParameters['zinc']?.value ?? _latestConfirmedReport?.getEffectiveValue('zinc');
     final fe = _soilProfile?.additionalParameters['iron']?.value ?? _latestConfirmedReport?.getEffectiveValue('iron');
@@ -2874,35 +3944,6 @@ class _SoilIntelligenceReportScreenState extends State<SoilIntelligenceReportScr
     );
   }
 
-  Widget _buildUnavailableRow(String nutrient, String status) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Text(nutrient, style: const TextStyle(fontSize: 12, color: Colors.black87)),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEBEE),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                status,
-                style: const TextStyle(color: Color(0xFFC62828), fontSize: 10.5, fontWeight: FontWeight.bold),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildProvenanceRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
@@ -2928,87 +3969,107 @@ class WeatherIntelligenceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(title: const Text('Weather & Climate Intelligence')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+      body: CenteredPageContainer(
+        maxWidth: 1120,
+        scrollable: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE1F5FE),
-                border: Border.all(color: const Color(0xFF81D4FA)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.cloud_queue, color: Color(0xFF0277BD), size: 28),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Farm-Specific Agro-Meteorology: Real-time observations from OpenWeather and 30-year climatological normals from NASA POWER.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF01579B), fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
+            const RashkarHeroBanner(
+              eyebrow: 'AGRO-METEOROLOGY',
+              title: 'Live Forecast & Climate Normals',
+              subtitle: 'Real-time OpenWeather observations, heat risk bands & 30-year NASA POWER seasonal normals.',
             ),
             const SizedBox(height: 16),
-            const Text('Select Farm for Weather & Climate Profile:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 8),
+            const RashkarNoticeCallout(
+              title: 'Data provenance',
+              message: 'Farm-Specific Agro-Meteorology: Real-time observations from OpenWeather and 30-year climatological normals from NASA POWER.',
+              icon: Icons.cloud_queue_rounded,
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Select Farm for Weather & Climate Profile:',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: RashkarColors.ink),
+            ),
+            const SizedBox(height: 12),
             if (farms.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32.0),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(Icons.terrain_outlined, size: 48, color: Colors.grey),
-                      const SizedBox(height: 12),
-                      const Text('No farms registered yet', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 6),
-                      const Text('Please register a farm boundary first to inspect soil parameters.', style: TextStyle(color: Colors.black54)),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1B5E20),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: const Icon(Icons.add_location_alt),
-                        label: const Text('Register New Farm'),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (ctx) => AddEditFarmScreen(
-                                onSave: (farm) => FarmRepository.instance.addFarm(farm),
-                              ),
+              RashkarCard(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+                child: Column(
+                  children: [
+                    const Icon(Icons.wb_sunny_outlined, size: 48, color: RashkarColors.mutedInk),
+                    const SizedBox(height: 12),
+                    const Text('No farms registered yet', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+                    const SizedBox(height: 6),
+                    const Text('Please register a farm boundary first to inspect climate metrics.', style: TextStyle(color: RashkarColors.mutedInk)),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_location_alt),
+                      label: const Text('Register New Farm'),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (ctx) => AddEditFarmScreen(
+                              onSave: (farm) => FarmRepository.instance.addFarm(farm),
                             ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               )
             else
-              ...farms.map((f) => Card(
-                    elevation: 1.5,
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Color(0xFFE1F5FE),
-                        child: Icon(Icons.wb_sunny, color: Color(0xFF0277BD)),
-                      ),
-                      title: Text(f.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${f.taluka} • Centroid: ${f.centroid.latitude.toStringAsFixed(3)}, ${f.centroid.longitude.toStringAsFixed(3)}'),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
-                      onTap: () {
-                        FarmRepository.instance.selectedFarmId = f.id;
-                        context.push(RoutePaths.weatherDetailPath(f.id));
-                      },
+              ResponsiveGrid(
+                mobileColumns: 1,
+                tabletColumns: 2,
+                desktopColumns: 2,
+                spacing: 12,
+                runSpacing: 12,
+                children: farms.map((f) {
+                  return RashkarCard(
+                    padding: const EdgeInsets.all(16),
+                    onTap: () {
+                      FarmRepository.instance.selectedFarmId = f.id;
+                      context.push(RoutePaths.weatherDetailPath(f.id));
+                    },
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: RashkarColors.marigoldTint,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.wb_sunny_rounded, color: RashkarColors.marigoldInk),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                f.name,
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: RashkarColors.ink),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${f.taluka} • Centroid: ${f.centroid.latitude.toStringAsFixed(3)}, ${f.centroid.longitude.toStringAsFixed(3)}',
+                                style: const TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: RashkarColors.mutedInk),
+                      ],
                     ),
-                  )),
+                  );
+                }).toList(),
+              ),
           ],
         ),
       ),
@@ -3097,6 +4158,7 @@ class WeatherClimateReportScreen extends StatefulWidget {
 class _WeatherClimateReportScreenState extends State<WeatherClimateReportScreen> {
   WeatherLanguage _currentLang = WeatherLanguage.english;
   bool _isLoading = false;
+  bool _advancedView = false;
   String? _weatherError;
   final WeatherRepository _weatherRepo = WeatherRepository();
   CurrentWeatherObservation? _currentWeather;
@@ -3251,20 +4313,30 @@ class _WeatherClimateReportScreenState extends State<WeatherClimateReportScreen>
     }
   }
 
+  String _weatherRiskForTemp(double tempC) {
+    if (tempC >= 42.0) return 'extreme';
+    if (tempC >= 37.0) return 'high';
+    if (tempC >= 32.0) return 'moderate';
+    return 'low';
+  }
+
   @override
   Widget build(BuildContext context) {
     final weather = _getWeatherData(widget.farm.taluka);
     final months = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
     final List<double> rainVals = (weather['monthly_rain'] as List).map((e) => (e as num).toDouble()).toList();
-    final double maxRain = rainVals.reduce((a, b) => a > b ? a : b);
+    final double curTemp = (weather['current_temp'] as num).toDouble();
+    final String curSeverity = _weatherRiskForTemp(curTemp);
+    final hourly = _forecast?.hourlyPoints ?? const <WeatherForecastPoint>[];
+    final isWide = MediaQuery.sizeOf(context).width >= 960;
 
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
         title: Text('${widget.farm.name} — ${WeatherLocalizer.t("title", _currentLang)}'),
-        backgroundColor: const Color(0xFF0277BD),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh Weather',
             onPressed: _refreshWeather,
           ),
@@ -3281,366 +4353,464 @@ class _WeatherClimateReportScreenState extends State<WeatherClimateReportScreen>
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_weatherError != null && _currentWeather == null)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFEBEE),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline, color: Color(0xFFC62828)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Live OpenWeather retrieval encountered an error ($_weatherError). Displaying regional historical baseline.',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFFC62828)),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _loadWeatherData,
-                            child: const Text('Retry', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFC62828))),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                  // 1. Live Weather Observation Card (OpenWeather)
-                  Card(
-                    elevation: 3,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0277BD), Color(0xFF01579B)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                WeatherLocalizer.t('observed_card', _currentLang),
-                                style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: Colors.white24,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.fiber_manual_record, color: Colors.greenAccent, size: 10),
-                                    SizedBox(width: 4),
-                                    Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${weather["current_temp"]} °C',
-                                    style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    'Feels like ${weather["feels_like"]} °C • ${weather["condition"]}',
-                                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                                  ),
-                                ],
-                              ),
-                              Icon(weather['icon'] as IconData, color: Colors.amberAccent, size: 52),
-                            ],
-                          ),
-                          const Divider(color: Colors.white24, height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [
-                              _buildWhiteMetric('Humidity', '${weather["humidity"]}%', Icons.water_drop),
-                              _buildWhiteMetric('Wind', '${weather["wind_kmh"]} km/h', Icons.air),
-                              _buildWhiteMetric('Precipitation', '${weather["rain_1h"]} mm', Icons.umbrella),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 2. 5-Day Agricultural Forecast Card (OpenWeather)
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            WeatherLocalizer.t('forecast_card', _currentLang),
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0277BD)),
-                          ),
-                          const SizedBox(height: 10),
-                          if (_forecast != null && _forecast!.dailySummaries.isNotEmpty)
-                            ..._forecast!.dailySummaries.take(5).map((d) {
-                              return Column(
-                                children: [
-                                  _buildForecastRow(
-                                    d.date.length >= 10 ? d.date.substring(5, 10) : d.date,
-                                    Icons.wb_sunny_outlined,
-                                    d.weatherCondition,
-                                    d.tempMinC,
-                                    d.tempMaxC,
-                                    d.maxPopPct.round(),
-                                  ),
-                                  const Divider(height: 12),
-                                ],
-                              );
-                            })
-                          else ...[
-                            _buildForecastRow('Today', Icons.wb_sunny, 'Sunny', 20.0, 31.0, 10),
-                            const Divider(height: 12),
-                            _buildForecastRow('Tomorrow', Icons.cloud_outlined, 'Partly Cloudy', 21.0, 31.5, 20),
-                            const Divider(height: 12),
-                            _buildForecastRow('Day 3', Icons.wb_cloudy_outlined, 'Overcast', 22.0, 30.0, 35),
-                            const Divider(height: 12),
-                            _buildForecastRow('Day 4', Icons.wb_sunny, 'Clear Sky', 20.5, 32.0, 15),
-                            const Divider(height: 12),
-                            _buildForecastRow('Day 5', Icons.wb_sunny_outlined, 'Sunny', 19.5, 32.5, 10),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 3. Monthly Rainfall & Climatology Chart (NASA POWER 30-Year Normals)
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  WeatherLocalizer.t('rainfall_normals', _currentLang),
-                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
-                                ),
-                              ),
-                              Chip(
-                                label: Text('${weather["annual_rain"]} mm / yr', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                                backgroundColor: const Color(0xFF2E7D32),
-                                padding: EdgeInsets.zero,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Monsoon months (Jun–Sep) in blue/teal receive 80–90% of annual rainfall:',
-                            style: TextStyle(color: Colors.black54, fontSize: 11),
-                          ),
-                          const SizedBox(height: 14),
-
-                          // Visual Bar Chart for 12 Months
-                          SizedBox(
-                            height: 140,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: List.generate(12, (index) {
-                                final val = rainVals[index];
-                                final isMonsoon = index >= 5 && index <= 8;
-                                final normHeight = maxRain > 0 ? (val / maxRain) * 95.0 : 0.0;
-
-                                return Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                                    child: Column(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          '${val.toInt()}',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: isMonsoon ? const Color(0xFF0277BD) : Colors.black54,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Container(
-                                          height: max(4.0, normHeight),
-                                          decoration: BoxDecoration(
-                                            color: isMonsoon ? const Color(0xFF0288D1) : Colors.grey.shade400,
-                                            borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          months[index],
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: isMonsoon ? FontWeight.bold : FontWeight.normal,
-                                            color: isMonsoon ? const Color(0xFF01579B) : Colors.black87,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 4. Agro-Climatic Seasonal Summary (NASA POWER)
-                  Card(
-                    elevation: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            WeatherLocalizer.t('seasonal_summary', _currentLang),
-                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
-                          ),
-                          const SizedBox(height: 10),
-
-                          _buildAgroRow('Annual Precipitation Normal', '${weather["annual_rain"]} mm'),
-                          _buildAgroRow('Monsoon Precipitation (Jun–Sep)', '${weather["monsoon_rain"]} mm (${weather["monsoon_pct"]}%)'),
-                          _buildAgroRow('Wet Season Period', '${weather["wet_season"]}'),
-                          _buildAgroRow('Dry Season Period', '${weather["dry_season"]}'),
-                          _buildAgroRow('Mean Annual Temperature', '${weather["mean_temp"]} °C (Range: ${weather["min_temp"]}°C to ${weather["max_temp"]}°C)'),
-                          const Divider(height: 16),
-
-                          // Potential Water Stress Indicator Badge
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(WeatherLocalizer.t('water_stress', _currentLang), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                              const SizedBox(height: 6),
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3E0),
-                                  border: Border.all(color: const Color(0xFFFFB74D)),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.water_damage_outlined, color: Color(0xFFE65100), size: 22),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        weather['stress_indicator'] as String,
-                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFFBF360C)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // 5. Indian Cropping Seasons Agro-Climatic Characteristics
-                  Card(
-                    elevation: 1,
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Agro-Climatic Seasonal Characteristics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                          const SizedBox(height: 8),
-                          _buildSeasonTile(
-                            'Kharif (Monsoon: Jun–Oct)',
-                            '${weather["kharif_rain"]} mm Rainfall • Rainfed / Canal Viable',
-                            const Color(0xFF2E7D32),
-                          ),
-                          const SizedBox(height: 6),
-                          _buildSeasonTile(
-                            'Rabi (Winter: Nov–Mar)',
-                            '${weather["rabi_rain"]} mm Rainfall • Moderate to High Water Stress (Well/Borewell Required)',
-                            const Color(0xFF0277BD),
-                          ),
-                          const SizedBox(height: 6),
-                          _buildSeasonTile(
-                            'Zaid (Summer: Apr–May)',
-                            '${weather["zaid_rain"]} mm Rainfall • High Heat Load & Severe Moisture Deficit',
-                            const Color(0xFFE65100),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 6. Scientific Provenance and Attribution Card
-                  Card(
-                    elevation: 1,
-                    color: const Color(0xFFFAFAFA),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Data Provenance & Scientific Transparency', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                          const SizedBox(height: 4),
-                          Text(WeatherLocalizer.t('disclaimer', _currentLang), style: const TextStyle(fontSize: 11, color: Colors.black54, height: 1.3)),
-                          const SizedBox(height: 6),
-                          Text('Centroid Coordinates: Lat ${widget.farm.centroid.latitude.toStringAsFixed(5)}, Lon ${widget.farm.centroid.longitude.toStringAsFixed(5)}', style: const TextStyle(fontSize: 10.5, color: Colors.black45)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+          ? const Center(child: CircularProgressIndicator(color: RashkarColors.forest))
+          : _buildFigmaWeatherBody(
+              context: context,
+              weather: weather,
+              months: months,
+              rainVals: rainVals,
+              curTemp: curTemp,
+              curSeverity: curSeverity,
+              hourly: hourly,
+              isWide: isWide,
             ),
     );
   }
 
-  Widget _buildWhiteMetric(String label, String value, IconData icon) {
-    return Column(
+  Widget _buildFigmaWeatherBody({
+    required BuildContext context,
+    required Map<String, dynamic> weather,
+    required List<String> months,
+    required List<double> rainVals,
+    required double curTemp,
+    required String curSeverity,
+    required List<WeatherForecastPoint> hourly,
+    required bool isWide,
+  }) {
+    final heroWeatherCard = RashkarCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${widget.farm.name} · ${widget.farm.taluka}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: RashkarColors.mutedInk,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${curTemp.toStringAsFixed(0)}°C',
+                          style: const TextStyle(
+                            fontSize: 42,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1.0,
+                            color: RashkarColors.ink,
+                            height: 1.0,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        RashkarSeverityBadge.fromRisk(curSeverity),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${weather["condition"]} · Feels like ${weather["feels_like"]}°C · 30-yr mean ${weather["mean_temp"]}°C',
+                      style: const TextStyle(fontSize: 13, color: RashkarColors.mutedInk),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: RashkarColors.marigoldTint,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  weather['icon'] as IconData,
+                  size: 32,
+                  color: RashkarColors.marigoldInk,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ResponsiveGrid(
+            mobileColumns: 2,
+            tabletColumns: 2,
+            desktopColumns: 2,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              RashkarMetricTile(
+                icon: Icons.water_drop_outlined,
+                label: 'Humidity',
+                value: '${weather["humidity"]}%',
+                caption: (weather['humidity'] as num) < 40 ? 'Very dry air' : 'Ambient moisture',
+              ),
+              RashkarMetricTile(
+                icon: Icons.air_rounded,
+                label: 'Wind',
+                value: '${weather["wind_kmh"]} km/h',
+                caption: '${weather["wind_speed"]} m/s surface',
+              ),
+              RashkarMetricTile(
+                icon: Icons.umbrella_outlined,
+                label: 'Rain (1h)',
+                value: '${weather["rain_1h"]} mm',
+                caption: _forecast != null && _forecast!.dailySummaries.isNotEmpty
+                    ? '${_forecast!.dailySummaries.first.maxPopPct.round()}% precip prob'
+                    : 'Current observation',
+              ),
+              RashkarMetricTile(
+                icon: Icons.thermostat_outlined,
+                label: 'Peak Range',
+                value: '${weather["min_temp"]}° – ${weather["max_temp"]}°',
+                caption: '30-yr NASA POWER',
+                iconBg: RashkarColors.marigoldTint,
+                iconColor: RashkarColors.marigoldInk,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: RashkarColors.surfaceSubtle,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _WeatherViewToggleBtn(
+                    label: 'Simple view',
+                    selected: !_advancedView,
+                    onTap: () => setState(() => _advancedView = false),
+                  ),
+                ),
+                Expanded(
+                  child: _WeatherViewToggleBtn(
+                    label: 'Advanced view',
+                    selected: _advancedView,
+                    onTap: () => setState(() => _advancedView = true),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final simpleViewContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(icon, color: Colors.white70, size: 20),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+        if (hourly.isNotEmpty) ...[
+          RashkarCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Next forecast intervals',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+                ),
+                const SizedBox(height: 12),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: hourly.take(10).map((pt) {
+                      final h = pt.forecastTime.hour.toString().padLeft(2, '0');
+                      final sev = _weatherRiskForTemp(pt.temperatureC);
+                      final badgeStyle = RashkarColors.severityFor(sev);
+                      return Container(
+                        width: 82,
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+                        decoration: BoxDecoration(
+                          color: RashkarColors.canvas,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: RashkarColors.border),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '$h:00',
+                              style: const TextStyle(fontSize: 11.5, color: RashkarColors.mutedInk, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 6),
+                            Icon(_mapWeatherIcon(pt.weatherCondition), size: 20, color: badgeStyle.bar),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${pt.temperatureC.toStringAsFixed(0)}°',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: RashkarColors.ink,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            RashkarSeverityBadge.fromRisk(sev, compact: true),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          RashkarCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Heat risk across intervals',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+                ),
+                const SizedBox(height: 10),
+                ...hourly.take(8).map((pt) {
+                  final hh = pt.forecastTime.hour.toString().padLeft(2, '0');
+                  return RashkarHorizontalRiskRow(
+                    timeLabel: '$hh:00',
+                    progress: (pt.temperatureC / 48.0).clamp(0.15, 1.0),
+                    valueText: '${pt.temperatureC.toStringAsFixed(0)}°',
+                    severity: _weatherRiskForTemp(pt.temperatureC),
+                  );
+                }),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        RashkarCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                WeatherLocalizer.t('forecast_card', _currentLang),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+              ),
+              const SizedBox(height: 10),
+              if (_forecast != null && _forecast!.dailySummaries.isNotEmpty)
+                ..._forecast!.dailySummaries.take(5).map((d) {
+                  return Column(
+                    children: [
+                      _buildForecastRow(
+                        d.date.length >= 10 ? d.date.substring(5, 10) : d.date,
+                        Icons.wb_sunny_outlined,
+                        d.weatherCondition,
+                        d.tempMinC,
+                        d.tempMaxC,
+                        d.maxPopPct.round(),
+                      ),
+                      const Divider(height: 14),
+                    ],
+                  );
+                })
+              else ...[
+                _buildForecastRow('Today', Icons.wb_sunny_outlined, 'Clear', 20.0, 31.0, 10),
+                const Divider(height: 14),
+                _buildForecastRow('Tomorrow', Icons.cloud_outlined, 'Partly Cloudy', 21.0, 31.5, 20),
+                const Divider(height: 14),
+                _buildForecastRow('Day 3', Icons.wb_cloudy_outlined, 'Overcast', 22.0, 30.0, 35),
+              ],
+            ],
+          ),
+        ),
       ],
+    );
+
+    final advancedChartPoints = hourly.isNotEmpty
+        ? hourly.take(12).map((pt) {
+            return RashkarChartSeriesPoint(
+              label: '${pt.forecastTime.hour}h',
+              primaryValue: pt.temperatureC,
+              secondaryValue: pt.humidityPercent,
+            );
+          }).toList()
+        : List.generate(12, (idx) {
+            final tVals = (weather['monthly_temp'] as List).map((e) => (e as num).toDouble()).toList();
+            return RashkarChartSeriesPoint(
+              label: months[idx],
+              primaryValue: idx < tVals.length ? tVals[idx] : curTemp,
+              secondaryValue: (weather['humidity'] as num).toDouble(),
+            );
+          });
+
+    final advancedViewContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RashkarCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hourly.isNotEmpty ? 'Temperature & humidity forecast' : 'Monthly temperature profile',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+              ),
+              const SizedBox(height: 12),
+              RashkarTempRiskBandChart(
+                points: advancedChartPoints,
+                highThreshold: 36,
+                extremeThreshold: 40,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        RashkarIndicatorListCard(
+          title: 'Farm climate indicators',
+          rows: [
+            MapEntry('Annual Precipitation Normal', '${weather["annual_rain"]} mm'),
+            MapEntry('Monsoon Share (Jun–Sep)', '${weather["monsoon_rain"]} mm (${weather["monsoon_pct"]}%)'),
+            MapEntry('Wet Season Period', '${weather["wet_season"]}'),
+            MapEntry('Dry Season Period', '${weather["dry_season"]}'),
+            MapEntry('Mean Annual Temperature', '${weather["mean_temp"]} °C (${weather["min_temp"]}° – ${weather["max_temp"]}°)'),
+          ],
+        ),
+      ],
+    );
+
+    final climatologyColumn = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RashkarCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      WeatherLocalizer.t('rainfall_normals', _currentLang),
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+                    ),
+                  ),
+                  RashkarSeverityBadge.success('${weather["annual_rain"]} mm/yr', compact: true),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Monsoon months (Jun–Sep) carry the highest share of annual rainfall.',
+                style: TextStyle(fontSize: 12, color: RashkarColors.mutedInk),
+              ),
+              const SizedBox(height: 14),
+              RashkarThresholdBarChart(
+                bars: List.generate(12, (index) {
+                  final isMonsoon = index >= 5 && index <= 8;
+                  return RashkarBarPoint(
+                    label: months[index],
+                    value: rainVals[index],
+                    valueText: '${rainVals[index].toInt()}',
+                    color: isMonsoon ? RashkarColors.skyFg : RashkarColors.borderStrong,
+                  );
+                }),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        RashkarCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Agro-Climatic Seasonal Characteristics',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: RashkarColors.ink),
+              ),
+              const SizedBox(height: 10),
+              _buildSeasonTile(
+                'Kharif (Monsoon: Jun–Oct)',
+                '${weather["kharif_rain"]} mm Rainfall • Rainfed / Canal Viable',
+                RashkarColors.forest,
+              ),
+              const SizedBox(height: 8),
+              _buildSeasonTile(
+                'Rabi (Winter: Nov–Mar)',
+                '${weather["rabi_rain"]} mm Rainfall • Well / Borewell Recommended',
+                RashkarColors.skyFg,
+              ),
+              const SizedBox(height: 8),
+              _buildSeasonTile(
+                'Zaid (Summer: Apr–May)',
+                '${weather["zaid_rain"]} mm Rainfall • High Heat Load & Moisture Deficit',
+                RashkarColors.highBar,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        RashkarNoticeCallout(
+          title: WeatherLocalizer.t('water_stress', _currentLang),
+          message: weather['stress_indicator'] as String,
+          icon: Icons.water_damage_outlined,
+        ),
+        const SizedBox(height: 12),
+        RashkarNoticeCallout(
+          title: 'Scientific Provenance',
+          message: '${WeatherLocalizer.t('disclaimer', _currentLang)} Coordinates: Lat ${widget.farm.centroid.latitude.toStringAsFixed(5)}, Lon ${widget.farm.centroid.longitude.toStringAsFixed(5)}.',
+        ),
+      ],
+    );
+
+    return CenteredPageContainer(
+      maxWidth: 1240,
+      scrollable: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_weatherError != null && _currentWeather == null) ...[
+            RashkarNoticeCallout(
+              title: 'Weather Fallback Mode',
+              message: 'Live OpenWeather retrieval encountered an error ($_weatherError). Displaying regional historical baseline.',
+              isDanger: true,
+            ),
+            const SizedBox(height: 14),
+          ],
+          if (isWide)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    children: [
+                      heroWeatherCard,
+                      const SizedBox(height: 14),
+                      _advancedView ? advancedViewContent : simpleViewContent,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 18),
+                Expanded(flex: 5, child: climatologyColumn),
+              ],
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                heroWeatherCard,
+                const SizedBox(height: 14),
+                _advancedView ? advancedViewContent : simpleViewContent,
+                const SizedBox(height: 14),
+                climatologyColumn,
+              ],
+            ),
+        ],
+      ),
     );
   }
 
@@ -3668,41 +4838,66 @@ class _WeatherClimateReportScreenState extends State<WeatherClimateReportScreen>
     );
   }
 
-  Widget _buildAgroRow(String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.black54, fontSize: 12.5))),
-          Text(val, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5)),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSeasonTile(String title, String subtitle, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
       ),
       child: Row(
         children: [
-          Icon(Icons.eco, color: color, size: 20),
-          const SizedBox(width: 8),
+          Icon(Icons.eco_outlined, color: color, size: 20),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: color)),
-                Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.black87)),
+                Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: color)),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: RashkarColors.ink)),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WeatherViewToggleBtn extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _WeatherViewToggleBtn({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? RashkarColors.surface : Colors.transparent,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(11),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected ? RashkarColors.ink : RashkarColors.mutedInk,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -4402,9 +5597,9 @@ class _CropCatalogScreenState extends State<CropCatalogScreen> {
     }).toList();
 
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
         title: const Text('Crop Knowledge Base'),
-        backgroundColor: const Color(0xFF1B5E20),
         actions: [
           PopupMenuButton<WeatherLanguage>(
             icon: const Icon(Icons.language),
@@ -4418,170 +5613,196 @@ class _CropCatalogScreenState extends State<CropCatalogScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_isLoading)
-            const LinearProgressIndicator(
-              color: Color(0xFF1B5E20),
-              backgroundColor: Color(0xFFE8F5E9),
-              minHeight: 2,
-            ),
-          // Search & Filter Header
-          Container(
-            padding: const EdgeInsets.all(12),
-            color: Colors.white,
-            child: Column(
-              children: [
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: _lang == WeatherLanguage.marathi ? 'पीक शोधा (उदा. कापूस, गहू)...' : 'Search crop (e.g. Wheat, Sugarcane)...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  ),
-                  onChanged: (val) => setState(() => _searchQuery = val),
-                ),
-                const SizedBox(height: 8),
-                // Category Filter Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _categories.map((cat) {
-                      final isSel = _selectedCategory == cat;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6.0),
-                        child: FilterChip(
-                          label: Text(cat),
-                          selected: isSel,
-                          selectedColor: const Color(0xFFC8E6C9),
-                          onSelected: (_) {
-                            setState(() => _selectedCategory = cat);
-                            _loadCrops();
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                // Season Filter Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _seasons.map((sn) {
-                      final isSel = _selectedSeason == sn;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6.0),
-                        child: FilterChip(
-                          label: Text(sn),
-                          selected: isSel,
-                          selectedColor: const Color(0xFFBBDEFB),
-                          onSelected: (_) {
-                            setState(() => _selectedSeason = sn);
-                            _loadCrops();
-                          },
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_isLoading) const LinearProgressIndicator(color: Color(0xFF1B5E20)),
-          if (_remoteCrops.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              color: const Color(0xFFE8F5E9),
-              child: Row(
+      body: CenteredPageContainer(
+        maxWidth: 1240,
+        child: Column(
+          children: [
+            if (_isLoading)
+              const LinearProgressIndicator(
+                color: RashkarColors.forest,
+                backgroundColor: RashkarColors.mintBg,
+                minHeight: 2,
+              ),
+            RashkarCard(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.check_circle_outline, color: Color(0xFF2E7D32), size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Synced with FastAPI Knowledge Base (${_remoteCrops.length} crops)',
-                    style: const TextStyle(fontSize: 12, color: Color(0xFF1B5E20), fontWeight: FontWeight.w600),
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: _lang == WeatherLanguage.marathi ? 'पीक शोधा (उदा. कापूस, गहू)...' : 'Search crop (e.g. Wheat, Sugarcane)...',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                    ),
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  ),
+                  const SizedBox(height: 10),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _categories.map((cat) {
+                        final isSel = _selectedCategory == cat;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: FilterChip(
+                            label: Text(
+                              cat,
+                              style: TextStyle(color: isSel ? Colors.white : RashkarColors.ink),
+                            ),
+                            selected: isSel,
+                            checkmarkColor: Colors.white,
+                            selectedColor: RashkarColors.ink,
+                            onSelected: (_) {
+                              setState(() => _selectedCategory = cat);
+                              _loadCrops();
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: _seasons.map((sn) {
+                        final isSel = _selectedSeason == sn;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: FilterChip(
+                            label: Text(
+                              sn,
+                              style: TextStyle(color: isSel ? RashkarColors.forest : RashkarColors.mutedInk),
+                            ),
+                            selected: isSel,
+                            selectedColor: RashkarColors.mintBg,
+                            onSelected: (_) {
+                              setState(() => _selectedSeason = sn);
+                              _loadCrops();
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ],
               ),
             ),
-          const Divider(height: 1),
-
-          // Crop List View
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: filtered.length,
-              itemBuilder: (ctx, idx) {
-                final crop = filtered[idx];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  elevation: 1.5,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (c) => CropDetailScreen(crop: crop, lang: _lang),
-                        ),
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
+            if (_remoteCrops.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: RashkarSeverityBadge.success(
+                  'Synced with Knowledge Base (${_remoteCrops.length} crops)',
+                  compact: true,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                child: ResponsiveGrid(
+                  mobileColumns: 1,
+                  tabletColumns: 2,
+                  desktopColumns: 3,
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: filtered.map((crop) {
+                    return RashkarCard(
+                      padding: const EdgeInsets.all(16),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (c) => CropDetailScreen(crop: crop, lang: _lang),
+                          ),
+                        );
+                      },
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: RashkarColors.cropPastelBg(crop.commonName),
+                                  borderRadius: BorderRadius.circular(13),
+                                ),
+                                child: const Icon(Icons.eco_outlined, color: RashkarColors.forest, size: 22),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _lang == WeatherLanguage.marathi
+                                          ? crop.marathiName
+                                          : (_lang == WeatherLanguage.hindi ? crop.hindiName : crop.commonName),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: RashkarColors.ink,
+                                      ),
+                                    ),
+                                    Text(
+                                      crop.scientificName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic,
+                                        color: RashkarColors.mutedInk,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              RashkarSeverityBadge.success(crop.category, icon: null, compact: true),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 6,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    _lang == WeatherLanguage.marathi ? crop.marathiName : (_lang == WeatherLanguage.hindi ? crop.hindiName : crop.commonName),
-                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20)),
-                                  ),
-                                  Text(
-                                    crop.scientificName,
-                                    style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.black54),
-                                  ),
+                                  const Icon(Icons.timer_outlined, size: 15, color: RashkarColors.mutedInk),
+                                  const SizedBox(width: 4),
+                                  Text('${crop.minDuration}–${crop.maxDuration} days', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                                 ],
                               ),
-                              Chip(
-                                label: Text(crop.category, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                                backgroundColor: const Color(0xFF2E7D32),
-                                padding: EdgeInsets.zero,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.water_drop_outlined, size: 15, color: RashkarColors.skyFg),
+                                  const SizedBox(width: 4),
+                                  Text('${crop.waterReqMinMm.toInt()}–${crop.waterReqMaxMm.toInt()} mm', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                                ],
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Icon(Icons.timer_outlined, size: 16, color: Colors.black54),
-                              const SizedBox(width: 4),
-                              Text('${crop.minDuration}–${crop.maxDuration} days', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                              const SizedBox(width: 14),
-                              const Icon(Icons.water_drop_outlined, size: 16, color: Color(0xFF0277BD)),
-                              const SizedBox(width: 4),
-                              Text('${crop.waterReqMinMm.toInt()}–${crop.waterReqMaxMm.toInt()} mm', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
                           Text(
                             'Key Varieties: ${crop.varieties.take(2).join(", ")}',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF5D4037)),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: RashkarColors.mutedInk),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                );
-              },
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4596,12 +5817,13 @@ class CropDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
         title: Text(crop.commonName),
-        backgroundColor: const Color(0xFF1B5E20),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: CenteredPageContainer(
+        maxWidth: 1120,
+        scrollable: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -5213,21 +6435,29 @@ class AboutCropNetScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(title: const Text('About CropNet AI')),
-      body: const Padding(
-        padding: EdgeInsets.all(16.0),
+      body: const CenteredPageContainer.readable(
+        scrollable: true,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('CropNet AI Platform', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1B5E20))),
-            SizedBox(height: 8),
-            Text('CropNet AI empowers smallholder farmers with geospatial soil intelligence and transparent crop suitability.'),
+            RashkarHeroBanner(
+              eyebrow: 'RASHKAR × CROPNET AI',
+              title: 'CropNet AI Platform',
+              subtitle: 'CropNet AI empowers smallholder farmers with geospatial soil intelligence, heat safety models, diversification income engines, and transparent crop suitability.',
+            ),
             SizedBox(height: 16),
-            Text('Technical Stack:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('• Backend: Python + FastAPI + SQLAlchemy'),
-            Text('• Database: PostgreSQL 17 + PostGIS (Supabase)'),
-            Text('• Mapping: flutter_map + MapTiler Satellite API'),
-            Text('• Soil Engine: OGC WCS 2.0.1 (ISRIC SoilGrids 2.0)'),
+            RashkarIndicatorListCard(
+              title: 'Technical Stack',
+              rows: [
+                MapEntry('Backend', 'Python + FastAPI + SQLAlchemy'),
+                MapEntry('Database', 'PostgreSQL 17 + PostGIS (Supabase / SQLite)'),
+                MapEntry('Mapping', 'flutter_map + MapTiler Satellite API'),
+                MapEntry('Soil Engine', 'OGC WCS 2.0.1 (ISRIC SoilGrids 2.0) + Lab OCR'),
+                MapEntry('Heat & Income Engines', 'Liljegren WBGT, Crop Thermal Limits & Financial Feasibility'),
+              ],
+            ),
           ],
         ),
       ),

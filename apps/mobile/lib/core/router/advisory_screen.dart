@@ -7,6 +7,7 @@ import 'package:cropnet_mobile/features/soil/models/soil_models.dart';
 import 'package:cropnet_mobile/main.dart' show FarmItem;
 import 'package:cropnet_mobile/core/network/api_client.dart';
 import 'package:cropnet_mobile/core/network/api_constants.dart';
+import 'package:cropnet_mobile/shared/theme/rashkar_colors.dart';
 
 /// Chat message model for Agricultural AI Assistant & Advisory session.
 class AdvisoryMessage {
@@ -743,10 +744,10 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
     final currentFarm = _getCurrentFarm();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAF7),
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
-        elevation: 1,
-        backgroundColor: const Color(0xFF1B5E20),
+        elevation: 0,
+        backgroundColor: RashkarColors.forest,
         foregroundColor: Colors.white,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -756,7 +757,12 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
               children: [
                 const Text(
                   'CropNet AI',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 0.2),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    letterSpacing: 0.2,
+                    color: Colors.white,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 _buildLlmStatusPill(isMr),
@@ -766,7 +772,7 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
               isMr
                   ? 'शासकीय व संशोधन संस्था प्रमाणित कृषी सल्ला'
                   : 'Grounded in Deterministic ICAR & MPKV Decision Engine',
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
+              style: const TextStyle(fontSize: 11, color: RashkarColors.forestTextMuted),
             ),
           ],
         ),
@@ -1274,9 +1280,9 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
   Widget _buildChatInputBar(bool isMr) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+      decoration: const BoxDecoration(
+        color: RashkarColors.surface,
+        border: Border(top: BorderSide(color: RashkarColors.border)),
       ),
       child: Row(
         children: [
@@ -1287,32 +1293,32 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
                 hintText: isMr
                     ? 'शेती किंवा पिकांविषयी प्रश्न विचारा (उदा. काळी जमीन हरभऱ्यासाठी योग्य आहे का?)...'
                     : 'Ask about crop feasibility, soil, or irrigation (e.g. Can I grow chickpea in heavy clay soil?)...',
-                hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey.shade500),
+                hintStyle: const TextStyle(fontSize: 12.5, color: RashkarColors.subtleInk),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 filled: true,
-                fillColor: const Color(0xFFF9FAF9),
+                fillColor: RashkarColors.canvas,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: const BorderSide(color: RashkarColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: const BorderSide(color: RashkarColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(color: Color(0xFF1B5E20), width: 1.5),
+                  borderSide: const BorderSide(color: RashkarColors.forest, width: 1.6),
                 ),
               ),
               onSubmitted: _sendMessage,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           CircleAvatar(
-            backgroundColor: const Color(0xFF1B5E20),
+            backgroundColor: RashkarColors.forest,
             radius: 22,
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white, size: 18),
+              icon: const Icon(Icons.send_rounded, color: RashkarColors.marigold, size: 19),
               onPressed: () => _sendMessage(_textController.text),
             ),
           ),
@@ -1338,11 +1344,8 @@ class _AdvisoryScreenState extends State<AdvisoryScreen> {
           ),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF1B5E20),
-            borderRadius: BorderRadius.circular(16).copyWith(bottomRight: Radius.zero),
-            boxShadow: const [
-              BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 2)),
-            ],
+            color: RashkarColors.forest,
+            borderRadius: BorderRadius.circular(18).copyWith(bottomRight: Radius.zero),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

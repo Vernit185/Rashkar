@@ -6,6 +6,10 @@ import 'package:cropnet_mobile/core/router/route_paths.dart';
 import 'package:cropnet_mobile/features/rashkar/data/rashkar_repository.dart';
 import 'package:cropnet_mobile/features/rashkar/models/rashkar_models.dart';
 import 'package:cropnet_mobile/main.dart';
+import 'package:cropnet_mobile/shared/theme/rashkar_colors.dart';
+import 'package:cropnet_mobile/shared/widgets/centered_page_container.dart';
+import 'package:cropnet_mobile/shared/widgets/rashkar_charts.dart';
+import 'package:cropnet_mobile/shared/widgets/rashkar_ui.dart';
 
 /// Unified Risk Hub preserving Rashkar's complete original Worker Heat Risk
 /// and Crop Heat Risk engines, thresholds, and workflows inside CropNet.
@@ -445,22 +449,6 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
     }
   }
 
-  Color _getHazardColor(String level) {
-    switch (level.toUpperCase()) {
-      case 'CRITICAL':
-      case 'SEVERE':
-      case 'EXTREME':
-        return const Color(0xFFC62828);
-      case 'HIGH':
-        return const Color(0xFFD84315);
-      case 'MODERATE':
-        return const Color(0xFFEF6C00);
-      case 'LOW':
-      default:
-        return const Color(0xFF2E7D32);
-    }
-  }
-
   String _safeStageLabel(CropHeatAssessment c) {
     final nameEn = c.growthStageNameEn.trim();
     if (nameEn.isNotEmpty && nameEn.toLowerCase() != 'null') {
@@ -477,77 +465,53 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     final farms = _availableFarms;
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8F5),
+      backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF1B5E20),
-        foregroundColor: Colors.white,
-        elevation: 1,
+        backgroundColor: RashkarColors.surface,
+        foregroundColor: RashkarColors.ink,
+        elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Farm & Worker Heat Risk',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              'Heat Risk Check',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: RashkarColors.ink),
             ),
-            Text(
-              _sharedContext != null
-                  ? '${_sharedContext!.farmName} · ${_sharedContext!.district}, ${_sharedContext!.state}'
-                  : 'WBGT Worker Safety & Crop Thermal Physiology',
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
-            ),
+            if (_sharedContext != null)
+              Text(
+                '${_sharedContext!.farmName} · ${_sharedContext!.taluka}, ${_sharedContext!.district}',
+                style: const TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk, fontWeight: FontWeight.w500),
+              ),
           ],
         ),
         actions: [
-          if (farms.isNotEmpty)
-            PopupMenuButton<String>(
-              tooltip: 'Switch registered farm',
-              icon: const Icon(Icons.agriculture_outlined),
-              onSelected: (farmId) {
-                if (widget.farmsOverride == null) {
-                  _farmRepo.selectFarm(farmId);
-                }
-                setState(() {
-                  _selectedFarmId = farmId;
-                  _selectedCycleId = null;
-                });
-                _loadAllData();
-              },
-              itemBuilder: (_) => farms
-                  .map(
-                    (f) => PopupMenuItem<String>(
-                      value: f.id,
-                      child: Row(
-                        children: [
-                          Icon(
-                            f.id == _selectedFarmId ? Icons.check_circle : Icons.landscape_outlined,
-                            size: 16,
-                            color: f.id == _selectedFarmId ? const Color(0xFF1B5E20) : Colors.black54,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(child: Text(f.name, overflow: TextOverflow.ellipsis)),
-                        ],
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-          IconButton(
-            tooltip: 'Refresh weather & heat models',
-            icon: const Icon(Icons.refresh),
+          TextButton.icon(
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Refresh'),
             onPressed: _isLoading ? null : _loadAllData,
           ),
+          const SizedBox(width: 6),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.engineering_outlined, size: 18), text: 'Worker Heat Risk'),
-            Tab(icon: Icon(Icons.eco_outlined, size: 18), text: 'Crop Heat Risk'),
-          ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(49),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: RashkarColors.surface,
+              border: Border(bottom: BorderSide(color: RashkarColors.border, width: 1)),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: RashkarColors.forestTint,
+              indicatorWeight: 3.5,
+              labelColor: RashkarColors.forest,
+              unselectedLabelColor: RashkarColors.mutedInk,
+              labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              tabs: const [
+                Tab(text: 'Worker Heat Risk'),
+                Tab(text: 'Crop Heat Risk'),
+              ],
+            ),
+          ),
         ),
       ),
       body: _buildBody(farms),
@@ -646,53 +610,54 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
   Widget _buildFarmSwitcherHeader() {
     final farms = _availableFarms;
     if (farms.isEmpty) return const SizedBox.shrink();
-    return Card(
-      elevation: 0,
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: [
-            const Icon(Icons.location_on_outlined, color: Color(0xFF1B5E20), size: 20),
-            const SizedBox(width: 10),
-            Expanded(
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  key: const Key('risk_farm_selector'),
-                  isExpanded: true,
-                  value: farms.any((f) => f.id == _selectedFarmId) ? _selectedFarmId : farms.first.id,
-                  items: farms
-                      .map(
-                        (f) => DropdownMenuItem<String>(
-                          value: f.id,
-                          child: Text(
-                            '${f.name}${_sharedContext != null && f.id == _selectedFarmId ? " (${_sharedContext!.totalAreaAcres.toStringAsFixed(1)} ac · ${_sharedContext!.taluka})" : ""}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                          ),
+    return RashkarCard(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      borderRadius: 16,
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(
+              color: RashkarColors.mintBg,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.spa_outlined, color: RashkarColors.forest, size: 17),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                key: const Key('risk_farm_selector'),
+                isExpanded: true,
+                value: farms.any((f) => f.id == _selectedFarmId) ? _selectedFarmId : farms.first.id,
+                items: farms
+                    .map(
+                      (f) => DropdownMenuItem<String>(
+                        value: f.id,
+                        child: Text(
+                          '${f.name}${_sharedContext != null && f.id == _selectedFarmId ? " (${_sharedContext!.totalAreaAcres.toStringAsFixed(1)} ac · ${_sharedContext!.taluka})" : ""}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: RashkarColors.ink),
                         ),
-                      )
-                      .toList(),
-                  onChanged: (farmId) {
-                    if (farmId == null || farmId == _selectedFarmId) return;
-                    if (widget.farmsOverride == null) {
-                      _farmRepo.selectFarm(farmId);
-                    }
-                    setState(() {
-                      _selectedFarmId = farmId;
-                      _selectedCycleId = null;
-                    });
-                    _loadAllData();
-                  },
-                ),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (farmId) {
+                  if (farmId == null || farmId == _selectedFarmId) return;
+                  if (widget.farmsOverride == null) {
+                    _farmRepo.selectFarm(farmId);
+                  }
+                  setState(() {
+                    _selectedFarmId = farmId;
+                    _selectedCycleId = null;
+                  });
+                  _loadAllData();
+                },
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -736,29 +701,25 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
     final fields = missing.missingFields;
     final needsName = fields.contains('farmer_profile.full_name');
     final needsPhone = fields.contains('farmer_profile.phone_number');
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFEF6C00), width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.assignment_late_outlined, color: Color(0xFFEF6C00), size: 26),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Complete Missing Worker Profile Details (Saved Once)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+    return RashkarCard(
+      borderColor: RashkarColors.marigold,
+      backgroundColor: RashkarColors.marigoldTint,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.assignment_late_outlined, color: RashkarColors.marigoldInk, size: 26),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Complete Missing Worker Profile Details (Saved Once)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: RashkarColors.ink),
                 ),
-              ],
-            ),
+              ),
+            ],
+          ),
             const SizedBox(height: 8),
             Text(
               missing.message,
@@ -821,7 +782,7 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
+                style: FilledButton.styleFrom(backgroundColor: RashkarColors.forest),
                 onPressed: _isSavingMissingContext ? null : _saveMissingWorkerContext,
                 icon: _isSavingMissingContext
                     ? const SizedBox(
@@ -835,508 +796,379 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildFarmerWorkerHeatTab(WorkerHeatResponse w) {
     final level = w.currentHazardLevel.toUpperCase();
-    final hazardColor = _getHazardColor(level);
+    final sevStyle = RashkarColors.severityFor(level);
 
     String statusTitle;
     String statusSub;
+    String plainRiskLabel;
     IconData statusIcon;
-    if (level == 'CRITICAL') {
-      statusTitle = 'Dangerous heat outdoors';
-      statusSub = 'Avoid heavy field labor during peak hours. Heat stroke hazard.';
+    if (level == 'CRITICAL' || level == 'EXTREME') {
+      statusTitle = 'Dangerously hot outdoors right now';
+      statusSub = 'Avoid heavy outdoor work and move to a cool, shaded place immediately.';
+      plainRiskLabel = 'DANGER';
       statusIcon = Icons.warning_amber_rounded;
     } else if (level == 'HIGH') {
-      statusTitle = 'Hot conditions — take precautions';
-      statusSub = 'Frequent shade breaks and regular water intake are essential today.';
-      statusIcon = Icons.wb_sunny_rounded;
+      statusTitle = w.peakRiskHourIst.isNotEmpty
+          ? 'Heat risk rises around ${w.peakRiskHourIst}'
+          : 'High heat risk outdoors';
+      statusSub = 'Complete heavy fieldwork in early morning or late afternoon, and avoid peak sun.';
+      plainRiskLabel = 'HIGH HEAT';
+      statusIcon = Icons.warning_amber_rounded;
     } else if (level == 'MODERATE') {
-      statusTitle = 'Warm outdoor conditions';
-      statusSub = 'Work is manageable with scheduled water breaks and sun protection.';
-      statusIcon = Icons.wb_cloudy_rounded;
+      statusTitle = 'Warm weather — stay hydrated and take shade breaks';
+      statusSub = 'Conditions are manageable with regular water breaks every 15–20 minutes.';
+      plainRiskLabel = 'MODERATE';
+      statusIcon = Icons.wb_sunny_outlined;
     } else {
-      statusTitle = 'Safe to work outdoors';
-      statusSub = 'Conditions are comfortable for regular farm work.';
-      statusIcon = Icons.check_circle_rounded;
+      statusTitle = 'Outdoor conditions are comfortable for fieldwork right now';
+      statusSub = 'Stay hydrated throughout the day and take regular rest in shade when tired.';
+      plainRiskLabel = 'SAFE';
+      statusIcon = Icons.check_circle_outline;
     }
 
+    final waterRule = w.hydrationGuidance['rule_summary']?.toString().trim();
+    final adviceList = <String>[
+      if (waterRule != null && waterRule.isNotEmpty)
+        waterRule
+      else
+        'Drink 1 glass (250 ml) of water every 15–20 minutes while working.',
+      if (w.shiftExceedsForecastCoverage && w.coverageLimitationWarning != null)
+        w.coverageLimitationWarning!
+      else if (level == 'HIGH' || level == 'CRITICAL' || level == 'EXTREME')
+        'Finish heavy field tasks before 10:30 AM or after 4:00 PM.'
+      else
+        'Rest in shade for a few minutes whenever you feel tired or thirsty.',
+      if (level != 'LOW' && w.highRiskActions.isNotEmpty)
+        w.highRiskActions.first
+      else if (w.duringWorkGuidance.isNotEmpty &&
+          !w.duringWorkGuidance.first.toUpperCase().contains('WBGT'))
+        w.duringWorkGuidance.first
+      else
+        'Wear loose cotton clothes and a head cloth when working in sunlight.',
+    ];
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 840),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      padding: const EdgeInsets.only(bottom: 36),
+      child: CenteredPageContainer(
+        maxWidth: 820,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (MediaQuery.sizeOf(context).width < 780 && _availableFarms.length > 1) ...[
               _buildFarmSwitcherHeader(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+            ],
+            // 1. ONE-SENTENCE ASSESSED RISK & ACTION
+            Text(
+              statusTitle,
+              style: const TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+                color: RashkarColors.ink,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              statusSub,
+              style: const TextStyle(fontSize: 15, color: RashkarColors.mutedInk, height: 1.4),
+            ),
+            const SizedBox(height: 16),
 
-              // SECTION A: Today's Outdoor Work Conditions (Main Card)
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: hazardColor.withValues(alpha: 0.4), width: 1.5),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: hazardColor.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(statusIcon, color: hazardColor, size: 28),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Outdoor Work Condition',
-                                      style: TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.bold),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: hazardColor,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        level,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Text(
-                                  statusTitle,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: hazardColor,
-                                  ),
-                                ),
-                                Text(
-                                  statusSub,
-                                  style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        w.categorySelectionReason.isNotEmpty
-                            ? w.categorySelectionReason
-                            : 'Current heat feels like ${w.currentWbgtEstimatedC.toStringAsFixed(1)}°C outdoors in direct sun. Follow field hydration rules.',
-                        style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
+            // 3. MINIMUM INFO & PRIMARY ACTION TO UPDATE WORK
+            RashkarCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Current work setup',
+                          style: TextStyle(fontSize: 13, color: RashkarColors.mutedInk, fontWeight: FontWeight.w600),
                         ),
-                        child: Column(
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.access_time_rounded, size: 18, color: Color(0xFFD84315)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Peak Heat Window: ${w.peakRiskHourIst.isNotEmpty ? w.peakRiskHourIst : "12:00 PM – 3:30 PM"} (Peak: ${w.maxHazardLevelInWindow})',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.water_drop, size: 18, color: Colors.blue),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    w.hydrationGuidance['rule_summary']?.toString() ??
-                                        'Drink 1 glass of water every 20 minutes. Keep a covered water pot near the plot.',
-                                    style: const TextStyle(fontSize: 12, color: Colors.black87),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_getWorkloadFriendlyName(_workload)} · ${_sunLabel(_sunExposure)}',
+                          style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: RashkarColors.ink),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 12),
+                  OutlinedButton(
+                    onPressed: () => _showWorkerSettingsBottomSheet(context),
+                    child: const Text('Change Work Details'),
+                  ),
+                ],
+              ),
+            ),
+            if (_isRecalculatingWorker) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(color: RashkarColors.forestTint, backgroundColor: RashkarColors.mintBg),
+            ],
+            const SizedBox(height: 16),
+
+            // 4. SIMPLE RESULT CARD
+            Container(
+              decoration: BoxDecoration(
+                color: level == 'LOW' ? RashkarColors.surface : sevStyle.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: level == 'LOW' ? RashkarColors.mintBorder : sevStyle.border,
+                  width: 1.2,
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // SECTION B: Adjust My Work Conditions
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: const BorderSide(color: Color(0xFFE0E0E0)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.tune, color: Color(0xFF2E7D32), size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                'My Current Farm Work',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
-                            ],
-                          ),
-                          if (_isRecalculatingWorker)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E7D32)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        children: [
-                          _buildSummaryPill('Work', _getWorkloadFriendlyName(_workload)),
-                          _buildSummaryPill(
-                            'Sun',
-                            _sunExposure == 'direct_sun'
-                                ? 'Direct Sun'
-                                : (_sunExposure == 'partial_shade' ? 'Partial Shade' : 'Full Shade'),
-                          ),
-                          _buildSummaryPill('Heat Adapted', _isAcclimatised ? 'Yes' : 'Not used to heat'),
-                          _buildSummaryPill('Shift', '${_exposureDurationHours.toStringAsFixed(1)} hrs'),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF2E7D32),
-                            side: const BorderSide(color: Color(0xFF2E7D32)),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          icon: const Icon(Icons.edit_note, size: 18),
-                          label: const Text('Change My Work Details', style: TextStyle(fontWeight: FontWeight.bold)),
-                          onPressed: () => _showWorkerSettingsBottomSheet(context),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      width: 6,
+                      decoration: BoxDecoration(
+                        color: sevStyle.bar,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(10),
+                          bottomLeft: Radius.circular(10),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // SECTION C: 6-Hour Heat Safety Timeline
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Today's Hourly Work Schedule",
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Color-coded hours: Green is safe, amber requires extra water, red means rest.',
-                        style: TextStyle(fontSize: 11, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 12),
-                      if (w.hourlyProjections.isNotEmpty)
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: w.hourlyProjections.map(_buildSimpleHourlyPill).toList(),
-                          ),
-                        ),
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.recommend, size: 18, color: Color(0xFF2E7D32)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                w.shiftExceedsForecastCoverage && w.coverageLimitationWarning != null
-                                    ? w.coverageLimitationWarning!
-                                    : 'Recommendation: Schedule heavy tasks before 10:30 AM or after 4:00 PM for comfort and safety.',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF1B5E20),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // SECTION D: Emergency Heat Illness Triage
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  side: BorderSide(color: Colors.red.shade200),
-                ),
-                child: Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                  child: ExpansionTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(color: Colors.red.shade50, shape: BoxShape.circle),
-                      child: const Icon(Icons.health_and_safety, color: Colors.red, size: 22),
                     ),
-                    title: const Text(
-                      'Signs of Heat Illness & Emergency First Aid',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red),
-                    ),
-                    subtitle: const Text(
-                      'Tap to view what to do if someone falls sick',
-                      style: TextStyle(fontSize: 11, color: Colors.black54),
-                    ),
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.orange.shade300),
-                                    ),
-                                    child: const Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Mild: Heat Exhaustion',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                            color: Colors.deepOrange,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          '• Dizziness or headache\n• Heavy sweating\n• Weakness, nausea',
-                                          style: TextStyle(fontSize: 11),
-                                        ),
-                                        SizedBox(height: 6),
-                                        Text(
-                                          'WHAT TO DO:\nMove to shade, loosen shirt, drink cool water with a pinch of salt.',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.brown,
-                                          ),
-                                        ),
-                                      ],
+                                Icon(statusIcon, color: sevStyle.foreground, size: 28),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: sevStyle.background,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: sevStyle.border),
+                                  ),
+                                  child: Text(
+                                    level == 'MODERATE' ? 'MODERATE' : plainRiskLabel,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: sevStyle.foreground,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade50,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: Colors.red.shade400),
-                                    ),
-                                    child: const Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Severe: Heat Stroke (108)',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 11,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                        SizedBox(height: 4),
-                                        Text(
-                                          '• High body heat\n• Confusion or fainting\n• Hot, dry or red skin',
-                                          style: TextStyle(fontSize: 11),
-                                        ),
-                                        SizedBox(height: 6),
-                                        Text(
-                                          'URGENT:\nCall 108 immediately!\nPour water on body while waiting. Do not force drinks if unconscious.',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.red,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                const Text(
+                                  'Outdoor Work Condition',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: RashkarColors.mutedInk,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(6),
+                            const SizedBox(height: 12),
+                            Text(
+                              statusTitle,
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: sevStyle.foreground,
+                                height: 1.2,
                               ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.phone_in_talk, size: 16, color: Colors.black87),
-                                  SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      'Ambulance: 108  |  Emergency: 112  |  Kisan Call Centre: 1800-180-1551',
-                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              statusSub,
+                              style: const TextStyle(fontSize: 15.5, color: RashkarColors.ink, height: 1.45),
+                            ),
+                            const SizedBox(height: 18),
+                            Wrap(
+                              spacing: 24,
+                              runSpacing: 10,
+                              children: [
+                                _SimpleStatReadout(
+                                  label: 'Air temperature now',
+                                  value: '${w.currentAirTempC.toStringAsFixed(0)}°C',
+                                ),
+                                _SimpleStatReadout(
+                                  label: 'Warmest time today',
+                                  value: w.peakRiskHourIst.isNotEmpty ? w.peakRiskHourIst : 'Afternoon',
+                                ),
+                              ],
                             ),
                           ],
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 5. CLEAR RECOMMENDATIONS / NEXT STEPS
+            RashkarCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'What you should do today',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: RashkarColors.ink),
                   ),
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < adviceList.length; i++) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 28,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: RashkarColors.mintBg,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${i + 1}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: RashkarColors.forest,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              adviceList[i],
+                              style: const TextStyle(fontSize: 15, color: RashkarColors.ink, height: 1.45),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (i < adviceList.length - 1) const SizedBox(height: 12),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 6. SAFE HOURS TODAY (Simple, plain-worded list)
+            if (w.hourlyProjections.isNotEmpty) ...[
+              RashkarCard(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Next hours today',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: RashkarColors.ink),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Plan heavier fieldwork during safer green hours.',
+                      style: TextStyle(fontSize: 14, color: RashkarColors.mutedInk),
+                    ),
+                    const SizedBox(height: 14),
+                    ...w.hourlyProjections.take(6).map((p) {
+                      final hStyle = RashkarColors.severityFor(p.hazardLevel);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: RashkarColors.canvas,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: RashkarColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 82,
+                              child: Text(
+                                p.validTimeIst,
+                                style: const TextStyle(
+                                  fontSize: 14.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: RashkarColors.ink,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '${p.airTempC.round()}°C',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: RashkarColors.ink,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: hStyle.background,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: hStyle.border),
+                              ),
+                              child: Text(
+                                _plainRiskWord(p.hazardLevel),
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: hStyle.foreground,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
+            ],
 
-              // SECTION E: Scientific & Provenance Details
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: ExpansionTile(
-                  leading: const Icon(Icons.biotech, color: Colors.blueGrey),
-                  title: const Text(
-                    'Scientific Details & Data Sources',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey),
+            // 7. EMERGENCY FIRST AID (Collapsed unless needed)
+            RashkarCard(
+              padding: EdgeInsets.zero,
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: const ExpansionTile(
+                  leading: Icon(Icons.local_hospital_outlined, color: RashkarColors.extremeFg),
+                  title: Text(
+                    'If someone feels sick from heat',
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: RashkarColors.ink),
                   ),
-                  subtitle: const Text(
-                    'Tap to view WBGT physics, thresholds & weather provider',
-                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                  subtitle: Text(
+                    'First aid signs and emergency number 108',
+                    style: TextStyle(fontSize: 13.5, color: RashkarColors.mutedInk),
                   ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _buildDetailChip('Air Temp', '${w.currentAirTempC.toStringAsFixed(1)}°C'),
-                              _buildDetailChip('Humidity', '${w.currentRelativeHumidityPct.toStringAsFixed(0)}%'),
-                              _buildDetailChip('Wind Speed', '${w.currentWindSpeedKmh.toStringAsFixed(1)} km/h'),
-                              _buildDetailChip('Solar Radiation', '${w.currentSolarRadiationWm2.toStringAsFixed(0)} W/m²'),
-                              _buildDetailChip('Effective WBGT', '${w.currentWbgtEstimatedC.toStringAsFixed(1)}°C'),
-                              if (w.currentHeatIndexC != null)
-                                _buildDetailChip('Heat Index', '${w.currentHeatIndexC!.toStringAsFixed(1)}°C'),
-                              if (w.currentUtciC != null)
-                                _buildDetailChip('UTCI', '${w.currentUtciC!.toStringAsFixed(1)}°C'),
-                              _buildDetailChip('Screening Limit', '${w.screeningThresholdC.toStringAsFixed(1)}°C'),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.blueGrey.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Threshold Comparison: ${w.thresholdComparisonMessage.isNotEmpty ? w.thresholdComparisonMessage : w.peakRiskReason}',
-                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Standards: ${w.methodologyStandardsVersion.isNotEmpty ? w.methodologyStandardsVersion : "ACGIH 2023 TLVs & ISO 7243:2017"}',
-                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Provider: ${w.weatherSourceName} (${w.spatialResolution}) · Valid: ${w.validTimeIst} IST · Status: ${w.isObservedOrForecast}',
-                                  style: const TextStyle(fontSize: 10, color: Colors.black54),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
                           Text(
-                            w.disclaimer.isNotEmpty
-                                ? w.disclaimer
-                                : 'Occupational heat screening based on ISO 7243 and ACGIH guidelines. Not a clinical device.',
-                            style: const TextStyle(fontSize: 10, color: Colors.black54, fontStyle: FontStyle.italic),
+                            'If dizzy, weak, or sweating heavily:\n• Move the person to cool shade right away.\n• Loosen clothes and give cool water slowly.\n\nIf very confused, hot, or fainting:\n• Call 108 for ambulance immediately.\n• Pour cool water on the body while waiting.',
+                            style: TextStyle(fontSize: 14.5, color: RashkarColors.ink, height: 1.5),
                           ),
                         ],
                       ),
@@ -1344,12 +1176,98 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+
+            // 8. EXPANDABLE TECHNICAL DETAILS (Hidden until tapped)
+            RashkarCard(
+              padding: EdgeInsets.zero,
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  leading: const Icon(Icons.info_outline, color: RashkarColors.forest),
+                  title: const Text(
+                    'More details',
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: RashkarColors.ink),
+                  ),
+                  subtitle: const Text(
+                    'Technical risk meter, WBGT measurements, and trend charts',
+                    style: TextStyle(fontSize: 13.5, color: RashkarColors.mutedInk),
+                  ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          RashkarRiskMeter(severity: level),
+                          const SizedBox(height: 14),
+                          RashkarIndicatorListCard(
+                            rows: [
+                              MapEntry('Air Temperature', '${w.currentAirTempC.toStringAsFixed(1)}°C'),
+                              MapEntry('Humidity', '${w.currentRelativeHumidityPct.toStringAsFixed(0)}%'),
+                              MapEntry('Wind Speed', '${w.currentWindSpeedKmh.toStringAsFixed(1)} km/h'),
+                              MapEntry('Solar Radiation', '${w.currentSolarRadiationWm2.toStringAsFixed(0)} W/m²'),
+                              MapEntry('Effective WBGT', '${w.currentWbgtEstimatedC.toStringAsFixed(1)}°C'),
+                              MapEntry('Screening Limit', '${w.screeningThresholdC.toStringAsFixed(1)}°C'),
+                              MapEntry('Shift Planned', '${w.plannedShiftDurationHours.toStringAsFixed(1)} hours'),
+                            ],
+                          ),
+                          if (w.categorySelectionReason.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              w.categorySelectionReason,
+                              style: const TextStyle(fontSize: 13.5, color: RashkarColors.ink, height: 1.45),
+                            ),
+                          ],
+                          if (w.hourlyProjections.length >= 2) ...[
+                            const SizedBox(height: 14),
+                            RashkarTempRiskBandChart(
+                              points: w.hourlyProjections
+                                  .map((p) => RashkarChartSeriesPoint(label: p.validTimeIst, primaryValue: p.wbgtEffectiveC))
+                                  .toList(),
+                              primaryLegend: 'Effective WBGT (°C)',
+                              highThreshold: w.screeningThresholdC,
+                              extremeThreshold: w.screeningThresholdC + 2.5,
+                              height: 150,
+                            ),
+                          ],
+                          const SizedBox(height: 10),
+                          Text(
+                            'Source: ${w.weatherSourceName} · Method: ${w.methodologyReference} (${w.methodologyStandardsVersion}).',
+                            style: const TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  String _sunLabel(String sunExposure) {
+    if (sunExposure == 'partial_shade') return 'Partial shade';
+    if (sunExposure == 'full_shade') return 'Under shed / full shade';
+    return 'Direct sun';
+  }
+
+  String _plainRiskWord(String hazardLevel) {
+    switch (hazardLevel.toUpperCase()) {
+      case 'CRITICAL':
+      case 'EXTREME':
+        return 'Danger';
+      case 'HIGH':
+        return 'High heat';
+      case 'MODERATE':
+        return 'Take breaks';
+      default:
+        return 'Safe';
+    }
   }
 
   // =========================================================================
@@ -1476,56 +1394,51 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
   }
 
   Widget _buildMissingCropContextCard(MissingSharedContextException missing) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: Color(0xFFEF6C00), width: 1.5),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.grass_outlined, color: Color(0xFFEF6C00), size: 26),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Add Active Crop Planting Details (Saved Once)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              missing.message,
-              style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.35),
-            ),
-            const SizedBox(height: 14),
-            _buildCropFormFields(),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
-                onPressed: _isSavingMissingContext ? null : () => _saveNewCropCycle(),
-                icon: _isSavingMissingContext
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(
-                  _isSavingMissingContext ? 'Saving Planting...' : 'Save Crop & Assess Heat Risk',
+    return RashkarCard(
+      borderColor: RashkarColors.marigold,
+      backgroundColor: RashkarColors.marigoldTint,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.grass_outlined, color: RashkarColors.marigoldInk, size: 26),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Add Active Crop Planting Details (Saved Once)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: RashkarColors.ink),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            missing.message,
+            style: const TextStyle(fontSize: 13, color: RashkarColors.ink, height: 1.35),
+          ),
+          const SizedBox(height: 14),
+          _buildCropFormFields(),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: RashkarColors.forest),
+              onPressed: _isSavingMissingContext ? null : () => _saveNewCropCycle(),
+              icon: _isSavingMissingContext
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(
+                _isSavingMissingContext ? 'Saving Planting...' : 'Save Crop & Assess Heat Risk',
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -1565,16 +1478,16 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
 
     return Card(
       elevation: 0,
-      color: Colors.white,
+      color: RashkarColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: RashkarColors.border),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: Row(
           children: [
-            const Icon(Icons.grass_outlined, color: Color(0xFF2E7D32), size: 20),
+            const Icon(Icons.grass_outlined, color: RashkarColors.forest, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: DropdownButtonHideUnderline(
@@ -1615,348 +1528,410 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
 
   Widget _buildFarmerCropHeatTab(CropHeatAssessment c) {
     final level = c.overallCropHeatRisk.toUpperCase();
-    final riskColor = _getHazardColor(level);
+    final sevStyle = RashkarColors.severityFor(level);
     final stageLabel = _safeStageLabel(c);
 
     String statusTitle;
     String statusSub;
+    String plainRiskLabel;
     IconData statusIcon;
-    if (level == 'CRITICAL' || level == 'HIGH') {
-      statusTitle = 'High heat stress — action needed';
-      statusSub = 'Temperatures are approaching or exceeding tolerance for your current growth stage.';
+    if (level == 'CRITICAL' || level == 'EXTREME' || level == 'HIGH') {
+      statusTitle = 'High heat stress forecast for ${c.cropCommonName}';
+      statusSub = 'Temperatures may stress the crop during the $stageLabel stage. Review the care steps below.';
+      plainRiskLabel = 'HIGH HEAT';
       statusIcon = Icons.warning_amber_rounded;
     } else if (level == 'MODERATE') {
-      statusTitle = 'Moderate heat — monitor soil moisture';
-      statusSub = 'Crop is experiencing warm conditions. Ensure adequate root zone moisture.';
+      statusTitle = 'Mild heat for ${c.cropCommonName} — watch moisture';
+      statusSub = 'Afternoon heat may dry soil faster. Check field moisture and irrigate during cooler hours.';
+      plainRiskLabel = 'MODERATE';
       statusIcon = Icons.water_drop_outlined;
     } else {
-      statusTitle = 'Crop is handling temperature well';
-      statusSub = 'Temperatures are within the optimal growth range for this stage.';
-      statusIcon = Icons.check_circle_rounded;
+      statusTitle = 'No heat stress forecast for ${c.cropCommonName}';
+      statusSub = 'Temperatures over the next 4 days are within normal limits for the $stageLabel stage.';
+      plainRiskLabel = 'SAFE';
+      statusIcon = Icons.check_circle_outline;
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 840),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+      padding: const EdgeInsets.only(bottom: 36),
+      child: CenteredPageContainer(
+        maxWidth: 820,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (MediaQuery.sizeOf(context).width < 780 && _availableFarms.length > 1) ...[
               _buildFarmSwitcherHeader(),
-              const SizedBox(height: 8),
-              _buildCropPlotSelectorBar(),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+            ],
+            // 1. ONE-SENTENCE CROP HEAT STATUS
+            Text(
+              statusTitle,
+              style: const TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+                color: RashkarColors.ink,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              statusSub,
+              style: const TextStyle(fontSize: 15, color: RashkarColors.mutedInk, height: 1.4),
+            ),
+            const SizedBox(height: 16),
 
-              // SECTION A: Crop Heat Status (Main Card)
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: riskColor.withValues(alpha: 0.4), width: 1.5),
+            // 3. ACTIVE CROP BAR & STAGE CONFIRMATION
+            _buildCropPlotSelectorBar(),
+            const SizedBox(height: 14),
+
+            // 4. SIMPLE RESULT CARD
+            Container(
+              decoration: BoxDecoration(
+                color: level == 'LOW' ? RashkarColors.surface : sevStyle.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: level == 'LOW' ? RashkarColors.mintBorder : sevStyle.border,
+                  width: 1.2,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: riskColor.withValues(alpha: 0.12),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(statusIcon, color: riskColor, size: 28),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      width: 6,
+                      decoration: BoxDecoration(
+                        color: sevStyle.bar,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(10),
+                          bottomLeft: Radius.circular(10),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
-                                Text(
-                                  '${c.cropCommonName.toUpperCase()} · $stageLabel Stage',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.black54,
-                                    fontWeight: FontWeight.bold,
+                                Icon(statusIcon, color: sevStyle.foreground, size: 28),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: sevStyle.background,
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: sevStyle.border),
+                                  ),
+                                  child: Text(
+                                    plainRiskLabel,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: sevStyle.foreground,
+                                    ),
                                   ),
                                 ),
                                 Text(
-                                  statusTitle,
-                                  style: TextStyle(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.bold,
-                                    color: riskColor,
+                                  '${c.cropCommonName.toUpperCase()} · $stageLabel Stage',
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: RashkarColors.mutedInk,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        c.stageBiologicalVulnerability.isNotEmpty ? c.stageBiologicalVulnerability : statusSub,
-                        style: const TextStyle(fontSize: 13, height: 1.35, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade200),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildSimpleMetric('Expected High', '${c.tmaxForecastC}°C', Icons.wb_sunny, Colors.orange.shade800),
-                            _buildSimpleMetric('Critical Limit', '${c.criticalTmaxThresholdC}°C', Icons.thermostat, Colors.red.shade700),
-                            _buildSimpleMetric('Optimal Range', '${c.optimalTempMinC}-${c.optimalTempMaxC}°C', Icons.check_circle_outline, Colors.green.shade800),
-                          ],
-                        ),
-                      ),
-                      if (c.isSeasonExpired || c.growthStageCode == null) ...[
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.deepOrange.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.deepOrange.shade300),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.event_busy, color: Colors.deepOrange, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  c.seasonExpiryMessage ??
-                                      'Crop sowing date indicates season has completed. Confirm current growth stage or add a new planting cycle.',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.deepOrange,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                            const SizedBox(height: 12),
+                            Text(
+                              statusTitle,
+                              style: TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w800,
+                                color: sevStyle.foreground,
+                                height: 1.2,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              statusSub,
+                              style: const TextStyle(fontSize: 15.5, color: RashkarColors.ink, height: 1.45),
+                            ),
+                            const SizedBox(height: 18),
+                            Wrap(
+                              spacing: 28,
+                              runSpacing: 12,
+                              children: [
+                                _SimpleStatReadout(
+                                  label: "Today's expected high",
+                                  value: '${c.tmaxForecastC.toStringAsFixed(1)}°C',
+                                ),
+                                _SimpleStatReadout(
+                                  label: 'Safe limit for this stage',
+                                  value: '${c.criticalTmaxThresholdC.toStringAsFixed(1)}°C',
+                                ),
+                              ],
+                            ),
+                            if (c.warmNightRespirationHazard) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: RashkarColors.marigoldTint,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: RashkarColors.marigoldBorder),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.nights_stay_outlined, size: 17, color: RashkarColors.marigoldInk),
+                                    SizedBox(width: 8),
+                                    Flexible(
+                                      child: Text(
+                                        'Warm nights expected — watch crop watering closely.',
+                                        style: TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: RashkarColors.marigoldInk,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
-                          ),
+                            if (c.isSeasonExpired || c.growthStageCode == null) ...[
+                              const SizedBox(height: 12),
+                              RashkarNoticeCallout(
+                                title: 'Check sowing date',
+                                message: c.seasonExpiryMessage ??
+                                    'Sowing date indicates this season may have finished. Select current stage or add a new crop planting.',
+                                icon: Icons.event_busy_outlined,
+                              ),
+                            ],
+                          ],
                         ),
-                      ],
-                    ],
-                  ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
+            ),
+            const SizedBox(height: 16),
 
-              // SECTION B: Confirm Your Crop Stage
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Confirm Crop Stage',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          if (_isRecalculatingCrop)
-                            const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E7D32)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        "Tap your crop's current stage to update heat tolerance thresholds:",
-                        style: TextStyle(fontSize: 11, color: Colors.black54),
-                      ),
-                      const SizedBox(height: 10),
-                      if (c.supportedStages.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade200),
-                          ),
-                          child: const Text(
-                            'General vegetative and thermal thresholds apply. Stage-specific phenological calibrations for this crop will be confirmed by local agronomists.',
-                            style: TextStyle(fontSize: 12, color: Colors.black54),
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: c.supportedStages.map((s) {
-                            final rawCode = s['stage_code']?.toString().trim();
-                            final safeCode = (rawCode != null && rawCode.isNotEmpty && rawCode != 'null')
-                                ? rawCode
-                                : 'stage_unknown';
-                            final rawName = s['stage_name_en'] ?? s['stage_name'] ?? s['name'];
-                            final stageName = (rawName != null &&
-                                    rawName.toString().trim().isNotEmpty &&
-                                    rawName.toString().trim().toLowerCase() != 'null')
-                                ? rawName.toString().trim()
-                                : (safeCode != 'stage_unknown'
-                                    ? safeCode.replaceAll('stage_', '').replaceAll('_', ' ').toUpperCase()
-                                    : 'Growth Stage');
-                            final critTmax = s['crit_tmax'];
-                            final limitLabel = critTmax != null ? ' ($critTmax°C limit)' : '';
-                            final isSelected = (_selectedCropStage ?? c.growthStageCode) == safeCode;
-
-                            return ChoiceChip(
-                              label: Text('$stageName$limitLabel'),
-                              selected: isSelected,
-                              selectedColor: const Color(0xFFE8F5E9),
-                              labelStyle: TextStyle(
-                                fontSize: 12,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                color: isSelected ? const Color(0xFF1B5E20) : Colors.black87,
-                              ),
-                              side: BorderSide(
-                                color: isSelected ? const Color(0xFF2E7D32) : Colors.grey.shade300,
-                                width: isSelected ? 1.5 : 1.0,
-                              ),
-                              onSelected: (selected) {
-                                if (selected && safeCode != 'stage_unknown') {
-                                  _recalculateCropHeat(safeCode);
-                                }
-                              },
-                            );
-                          }).toList(),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // SECTION C: 4-Day Crop Heat Outlook
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // CONFIRM CROP GROWTH STAGE
+            RashkarCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        '4-Day Temperature Outlook for Your Crop',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                        'Confirm Crop Stage',
+                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: RashkarColors.ink),
                       ),
-                      const SizedBox(height: 10),
-                      if (c.dailyOutlook.isNotEmpty)
-                        Column(children: c.dailyOutlook.map(_buildSimpleDailyRow).toList())
-                      else
-                        const Text('Daily outlook unavailable.', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // SECTION D: Recommended Actions
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                child: Padding(
-                  padding: const EdgeInsets.all(14.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.lightbulb_outline, color: Color(0xFF2E7D32), size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Recommended Actions for Your Crop',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      if (c.recommendedInterventions.isNotEmpty)
-                        ...c.recommendedInterventions.map(_buildSimpleInterventionCard)
-                      else
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8.0),
-                          child: Text(
-                            'No urgent heat interventions needed today.',
-                            style: TextStyle(fontSize: 12, color: Colors.black54),
-                          ),
+                      if (_isRecalculatingCrop)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: RashkarColors.forestTint),
                         ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Tap your crop's stage right now to update heat safety limits:",
+                    style: TextStyle(fontSize: 14.5, color: RashkarColors.mutedInk),
+                  ),
+                  const SizedBox(height: 12),
+                  if (c.supportedStages.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: RashkarColors.canvas,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: RashkarColors.border),
+                      ),
+                      child: const Text(
+                        'General temperature safety limits apply for this crop.',
+                        style: TextStyle(fontSize: 14, color: RashkarColors.mutedInk),
+                      ),
+                    )
+                  else
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: c.supportedStages.map((s) {
+                        final rawCode = s['stage_code']?.toString().trim();
+                        final safeCode = (rawCode != null && rawCode.isNotEmpty && rawCode != 'null')
+                            ? rawCode
+                            : 'stage_unknown';
+                        final rawName = s['stage_name_en'] ?? s['stage_name'] ?? s['name'];
+                        final stageName = (rawName != null &&
+                                rawName.toString().trim().isNotEmpty &&
+                                rawName.toString().trim().toLowerCase() != 'null')
+                            ? rawName.toString().trim()
+                            : (safeCode != 'stage_unknown'
+                                ? safeCode.replaceAll('stage_', '').replaceAll('_', ' ').toUpperCase()
+                                : 'Growth Stage');
+                        final critTmax = s['crit_tmax'];
+                        final limitLabel = critTmax != null ? ' ($critTmax°C limit)' : '';
+                        final isSelected = (_selectedCropStage ?? c.growthStageCode) == safeCode;
 
-              // SECTION E: Scientific & Agronomic Details
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        return ChoiceChip(
+                          label: Text('$stageName$limitLabel'),
+                          selected: isSelected,
+                          checkmarkColor: Colors.white,
+                          selectedColor: RashkarColors.forestTint,
+                          backgroundColor: RashkarColors.surface,
+                          labelStyle: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                            color: isSelected ? Colors.white : RashkarColors.ink,
+                          ),
+                          side: BorderSide(
+                            color: isSelected ? RashkarColors.forestTint : RashkarColors.border,
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                          onSelected: (selected) {
+                            if (selected && safeCode != 'stage_unknown') {
+                              _recalculateCropHeat(safeCode);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 5. NEXT 4 DAYS AT A GLANCE (Clean high-contrast rows)
+            RashkarCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Next 4 days for your crop',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RashkarColors.ink),
+                  ),
+                  const SizedBox(height: 12),
+                  if (c.dailyOutlook.isNotEmpty)
+                    Column(children: c.dailyOutlook.map(_buildSimpleDailyRow).toList())
+                  else
+                    const Text(
+                      '4-day crop outlook is unavailable right now.',
+                      style: TextStyle(fontSize: 14.5, color: RashkarColors.mutedInk),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 6. WHAT TO DO TO PROTECT YOUR CROP
+            RashkarCard(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'What you can do for your crop',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RashkarColors.ink),
+                  ),
+                  const SizedBox(height: 12),
+                  if (c.recommendedInterventions.isNotEmpty)
+                    for (int i = 0; i < c.recommendedInterventions.length; i++) ...[
+                      _buildSimpleInterventionCard(c.recommendedInterventions[i], stepNumber: i + 1),
+                      if (i < c.recommendedInterventions.length - 1) const SizedBox(height: 12),
+                    ]
+                  else
+                    const Text(
+                      'No extra heat care needed today. Continue normal watering.',
+                      style: TextStyle(fontSize: 15, color: RashkarColors.mutedInk),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 7. EXPANDABLE "MORE DETAILS" (Technical risk meter, charts, biological physiology & citations)
+            RashkarCard(
+              padding: EdgeInsets.zero,
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  leading: const Icon(Icons.science_outlined, color: Colors.blueGrey),
+                  leading: const Icon(Icons.info_outline, color: RashkarColors.forest),
                   title: const Text(
-                    'Scientific & Field Research Details',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueGrey),
+                    'More details',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5, color: RashkarColors.ink),
                   ),
                   subtitle: const Text(
-                    'Tap to view GDD units, soil provenance & research citations',
-                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                    'Technical risk meter, 4-day temperature chart, GDD & scientific sources',
+                    style: TextStyle(fontSize: 13.5, color: RashkarColors.mutedInk),
                   ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _buildDetailChip('Base Temp', '${c.baseTempC}°C'),
-                              _buildDetailChip('Exceedance Hours', '${c.hoursAboveCritical.toStringAsFixed(1)} hrs'),
-                              _buildDetailChip('Consecutive Hot Days', '${c.consecutiveHotDays}'),
-                              _buildDetailChip('GDD Heat Units', c.cumulativeHeatUnitsGdd.toStringAsFixed(1)),
-                              _buildDetailChip('Warm Night Hazard', c.warmNightRespirationHazard ? 'YES' : 'NO'),
-                              _buildDetailChip('Soil Type', '${c.soilTexture} (${c.soilProvenanceLabel})'),
+                          RashkarRiskMeter(severity: level),
+                          const SizedBox(height: 14),
+                          if (c.dailyOutlook.isNotEmpty) ...[
+                            RashkarThresholdBarChart(
+                              thresholdValue: c.criticalTmaxThresholdC,
+                              thresholdLabel: 'Danger > ${c.criticalTmaxThresholdC.toStringAsFixed(1)}°C',
+                              bars: c.dailyOutlook.map((day) {
+                                final sev = RashkarColors.severityFor(day.riskCategory);
+                                return RashkarBarPoint(
+                                  label: day.dayLabel,
+                                  value: day.tmaxC,
+                                  valueText: '${day.tmaxC.toStringAsFixed(0)}°',
+                                  color: sev.bar,
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          RashkarIndicatorListCard(
+                            rows: [
+                              MapEntry('Optimal Range', '${c.optimalTempMinC}–${c.optimalTempMaxC}°C'),
+                              MapEntry('Base Temperature', '${c.baseTempC}°C'),
+                              MapEntry('Hours Above Limit', '${c.hoursAboveCritical.toStringAsFixed(1)} hrs'),
+                              MapEntry('Hot Days in Row', '${c.consecutiveHotDays}'),
+                              MapEntry('GDD Heat Units', c.cumulativeHeatUnitsGdd.toStringAsFixed(1)),
+                              MapEntry('Soil Type', '${c.soilTexture} (${c.soilProvenanceLabel})'),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          if (c.evidenceCitation.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'Scientific Evidence Citation: ${c.evidenceCitation}',
-                                style: const TextStyle(fontSize: 11, color: Colors.black87, fontStyle: FontStyle.italic),
-                              ),
+                          if (c.stageBiologicalVulnerability.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              c.stageBiologicalVulnerability,
+                              style: const TextStyle(fontSize: 13.5, color: RashkarColors.ink, height: 1.45),
                             ),
+                          ],
+                          if (c.evidenceCitation.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            RashkarNoticeCallout(
+                              title: 'Research Citation',
+                              message: c.evidenceCitation,
+                            ),
+                          ],
                         ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1965,120 +1940,62 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
   // =========================================================================
   // HELPER WIDGETS
   // =========================================================================
-  Widget _buildSummaryPill(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Text(
-        '$label: $value',
-        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
-      ),
-    );
-  }
-
-  Widget _buildSimpleMetric(String label, String value, IconData icon, Color color) {
-    return Column(
-      children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(height: 4),
-        Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color)),
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.black54)),
-      ],
-    );
-  }
-
-  Widget _buildDetailChip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: Text(
-        '$label: $value',
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.black87),
-      ),
-    );
-  }
-
-  Widget _buildSimpleHourlyPill(WorkerHourlyProjection p) {
-    final color = _getHazardColor(p.hazardLevel);
-
-    return Container(
-      width: 78,
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color, width: p.exceedsScreeningThreshold ? 1.5 : 1.0),
-      ),
-      child: Column(
-        children: [
-          Text(p.validTimeIst, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-          const SizedBox(height: 4),
-          Text('${p.wbgtEffectiveC}°C', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: color)),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
-            child: Text(
-              p.hazardLevel,
-              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildSimpleDailyRow(CropDailyOutlook day) {
-    final col = _getHazardColor(day.riskCategory);
-
+    final dayStyle = RashkarColors.severityFor(day.riskCategory);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: RashkarColors.canvas,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: RashkarColors.border),
       ),
       child: Row(
         children: [
           SizedBox(
-            width: 70,
+            width: 82,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(day.dayLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                Text(day.date, style: const TextStyle(fontSize: 10, color: Colors.black54)),
+                Text(day.dayLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: RashkarColors.ink)),
+                Text(day.date, style: const TextStyle(fontSize: 12, color: RashkarColors.mutedInk)),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               day.explanation,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              style: const TextStyle(fontSize: 14, color: RashkarColors.ink, height: 1.35),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${day.tmaxC}°C / ${day.tminC}°C', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
-              const SizedBox(height: 2),
+              Text(
+                '${day.tmaxC.round()}° / ${day.tminC.round()}°C',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: RashkarColors.ink,
+                ),
+              ),
+              const SizedBox(height: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: col, borderRadius: BorderRadius.circular(4)),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: dayStyle.background,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: dayStyle.border),
+                ),
                 child: Text(
-                  day.riskCategory,
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white),
+                  _plainRiskWord(day.riskCategory),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: dayStyle.foreground,
+                  ),
                 ),
               ),
             ],
@@ -2088,52 +2005,17 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildSimpleInterventionCard(CropHeatIntervention rec) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F8E9),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.green.shade300),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  rec.titleEn,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1B5E20)),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade100,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  rec.category.replaceAll('_', ' '),
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade900),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(rec.descriptionEn, style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.3)),
-          if (rec.applicationMethod != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'How: ${rec.applicationMethod} ${rec.applicationDose != null ? "(${rec.applicationDose})" : ""}',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87),
-            ),
-          ],
-          const SizedBox(height: 4),
-          Text('Why this helps: ${rec.whyAppropriate}', style: TextStyle(fontSize: 11, color: Colors.green.shade900)),
-        ],
-      ),
+  Widget _buildSimpleInterventionCard(CropHeatIntervention rec, {int stepNumber = 1}) {
+    final detail = rec.applicationMethod != null
+        ? 'How: ${rec.applicationMethod} ${rec.applicationDose != null ? "(${rec.applicationDose})" : ""} · Why: ${rec.whyAppropriate}'
+        : 'Why this helps: ${rec.whyAppropriate}';
+
+    return RashkarActionCard(
+      stepNumber: stepNumber,
+      title: rec.titleEn,
+      subtitle: rec.descriptionEn,
+      icon: Icons.eco_outlined,
+      technicalDetail: detail,
     );
   }
 
@@ -2293,18 +2175,18 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1B5E20),
+                          backgroundColor: RashkarColors.forestTint,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: () {
                           Navigator.pop(ctx);
                           _recalculateWorkerHeat();
                         },
                         child: const Text(
-                          'Update & Recalculate Heat Safety',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          'Update Heat Risk Check',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       ),
                     ),
@@ -2315,6 +2197,50 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
           },
         );
       },
+    );
+  }
+}
+
+class _SimpleStatReadout extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SimpleStatReadout({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: RashkarColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 13,
+              color: RashkarColors.mutedInk,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 21,
+              fontWeight: FontWeight.w800,
+              color: RashkarColors.ink,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

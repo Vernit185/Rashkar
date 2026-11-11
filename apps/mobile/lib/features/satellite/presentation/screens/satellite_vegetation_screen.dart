@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
+import '../../../../shared/widgets/rashkar_charts.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../../models/satellite_models.dart';
 import '../../data/satellite_repository.dart';
 
@@ -187,8 +190,6 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.farmName} — Satellite Vegetation'),
-        backgroundColor: const Color(0xFF1B5E20),
-        foregroundColor: Colors.white,
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
@@ -199,7 +200,7 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
                       child: SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 2.5, color: RashkarColors.forest),
                       ),
                     ),
                   )
@@ -216,9 +217,9 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: Color(0xFF2E7D32)),
+                  CircularProgressIndicator(color: RashkarColors.forest),
                   SizedBox(height: 16),
-                  Text('Loading Sentinel-2 vegetation observations...', style: TextStyle(color: Colors.black54)),
+                  Text('Loading Sentinel-2 vegetation observations...', style: TextStyle(color: RashkarColors.mutedInk)),
                 ],
               ),
             )
@@ -356,14 +357,14 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
               Text(
                 'Satellite Vegetation Intelligence',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1B5E20),
+                      fontWeight: FontWeight.w800,
+                      color: RashkarColors.ink,
                     ),
               ),
               const SizedBox(height: 4),
               const Text(
                 'Copernicus Sentinel-2 Level-2A (MSI) Surface Reflectance. Ground Sampling Distance: 10m native (B04/B08).',
-                style: TextStyle(color: Colors.black54, fontSize: 13),
+                style: TextStyle(color: RashkarColors.mutedInk, fontSize: 13),
               ),
             ],
           ),
@@ -380,7 +381,7 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
               : const Icon(Icons.cloud_sync, size: 18),
           label: Text(_isSyncing ? 'Syncing...' : 'Sync Pass'),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF1B5E20),
+            backgroundColor: RashkarColors.forest,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           ),
         ),
@@ -1144,17 +1145,19 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
   Widget _buildRasterLegend(String layer) {
     if (layer == 'ndvi') {
       return Container(
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey.shade200),
+          color: RashkarColors.surfaceSubtle,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: RashkarColors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('NDVI Color Ramp:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
+            const Text('NDVI Color Ramp:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: RashkarColors.ink)),
+            const SizedBox(height: 8),
+            const RashkarVegetationLegendBar(),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 12,
               runSpacing: 6,
@@ -1438,65 +1441,41 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
   }
 
   Widget _buildEmptyObservationCard(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: Colors.grey.shade100,
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Center(
-          child: Column(
-            children: [
-              const Icon(Icons.satellite_alt_outlined, size: 48, color: Colors.black45),
-              const SizedBox(height: 12),
-              const Text(
-                'No satellite observation recorded yet for this farm.',
-                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.black87),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Click "Sync Pass" above to retrieve Copernicus Sentinel-2 L2A surface reflectance.',
-                style: TextStyle(color: Colors.black54, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: _isSyncing ? null : _handleSync,
-                icon: const Icon(Icons.cloud_download, size: 18),
-                label: const Text('Retrieve First Pass'),
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF1B5E20)),
-              ),
-            ],
-          ),
+    return RashkarCard(
+      backgroundColor: RashkarColors.surfaceSubtle,
+      padding: const EdgeInsets.all(32),
+      child: Center(
+        child: Column(
+          children: [
+            const Icon(Icons.satellite_alt_outlined, size: 48, color: RashkarColors.forest),
+            const SizedBox(height: 12),
+            const Text(
+              'No satellite observation recorded yet for this farm.',
+              style: TextStyle(fontWeight: FontWeight.w700, color: RashkarColors.ink),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Click "Sync Pass" above to retrieve Copernicus Sentinel-2 L2A surface reflectance.',
+              style: TextStyle(color: RashkarColors.mutedInk, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _isSyncing ? null : _handleSync,
+              icon: const Icon(Icons.cloud_download, size: 18),
+              label: const Text('Retrieve First Pass'),
+              style: FilledButton.styleFrom(backgroundColor: RashkarColors.forest),
+            ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildScientificDisclaimerCard(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.blueGrey.shade50,
-        border: Border.all(color: Colors.blueGrey.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.shield_outlined, color: Colors.blueGrey, size: 24),
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'SCIENTIFIC SAFEGUARD NOTICE: Sentinel-2 Level-2A NDVI (native 10m B08/B04) and NDMI '
-              '(native 20m SWIR B11 resampled to 10m grid) reflect surface canopy spectral reflectance. '
-              'Resampling 20m SWIR does not synthesize native 10m detail. '
-              'They serve as indirect indicators of vegetative vigor and moisture status. '
-              'They MUST NEVER be used as direct diagnoses of specific plant diseases, pest infestations, '
-              'nitrogen deficiencies, or absolute crop yield predictions without field ground-truthing.',
-              style: TextStyle(fontSize: 12, height: 1.4, color: Colors.black87),
-            ),
-          ),
-        ],
-      ),
+    return const RashkarNoticeCallout(
+      title: 'Scientific Safeguard Notice',
+      message:
+          'Sentinel-2 Level-2A NDVI (native 10m B08/B04) and NDMI (native 20m SWIR B11 resampled to 10m grid) reflect surface canopy spectral reflectance. Resampling 20m SWIR does not synthesize native 10m detail. They serve as indirect indicators of vegetative vigor and moisture status. They MUST NEVER be used as direct diagnoses of specific plant diseases, pest infestations, nitrogen deficiencies, or absolute crop yield predictions without field ground-truthing.',
     );
   }
 }

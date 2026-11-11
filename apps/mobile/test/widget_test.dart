@@ -34,9 +34,9 @@ void main() {
     await tester.pumpWidget(const CropNetApp());
     await tester.pumpAndSettle();
 
-    // Verify My Registered Farms dashboard on initial load
-    expect(find.text('My Registered Farms'), findsOneWidget);
-    expect(find.text('Baramati Pilot Plot'), findsOneWidget);
+    // Verify farmer-first Home screen on initial load
+    expect(find.text('What would you like to do?'), findsOneWidget);
+    expect(find.textContaining('Baramati Pilot Plot'), findsAtLeastNWidgets(1));
     expect(find.text('Soil'), findsOneWidget);
 
     // 2. Switch to Soil tab

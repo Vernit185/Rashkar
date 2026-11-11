@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../auth_service.dart';
 
 /// Farmer-friendly login screen for CropNet AI.
@@ -69,203 +71,142 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryGreen = Color(0xFF2E7D32);
     final isConfigured = AuthService.instance.isConfigured;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: RashkarColors.canvas,
       body: SafeArea(
         child: CenteredPageContainer(
-          maxWidth: 440,
+          maxWidth: 460,
           scrollable: true,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Brand Header
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: primaryGreen.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+          child: RashkarCard(
+            padding: const EdgeInsets.all(26),
+            borderRadius: 22,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(
+                    child: RashkarLogoBadge(size: 52, showWordmark: true),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Welcome back to Rashkar',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: RashkarColors.ink,
+                      letterSpacing: -0.3,
                     ),
-                    child: const Icon(
-                      Icons.agriculture_rounded,
-                      size: 48,
-                      color: primaryGreen,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Digital Agricultural Intelligence & Heat Safety',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: RashkarColors.mutedInk,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'CropNet AI',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1B5E20),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Digital Agricultural Intelligence & Crop Advisory',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF616161),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 22),
 
-                // Unconfigured Banner if running without Supabase credentials
-                if (!isConfigured)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3CD),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFEEBA)),
+                  if (!isConfigured) ...[
+                    const RashkarNoticeCallout(
+                      title: 'Development Mode',
+                      message: 'Supabase credentials not set via --dart-define. You can continue with isolated dev authentication.',
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.info_outline, color: Color(0xFF856404), size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Development Mode: Supabase credentials not set via --dart-define. You can continue with isolated dev authentication.',
-                            style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Error Banner
-                if (_errorMessage != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEBEE),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFCDD2)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.error_outline, color: Color(0xFFC62828), size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(fontSize: 13, color: Color(0xFFC62828)),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Email Input
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Farmer Email / मोबाईल किंवा ईमेल',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!val.contains('@')) {
-                      return 'Please enter a valid email address';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Password Input
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password / पासवर्ड',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  validator: (val) {
-                    if (val == null || val.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                // Sign In Button
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _handleSignIn,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Sign In / साइन इन करा',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                ),
-                const SizedBox(height: 16),
-
-                // Link to Register
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('New farmer? / नवीन नोंदणी? '),
-                    TextButton(
-                      onPressed: () => context.go('/register'),
-                      child: const Text(
-                        'Create Account / नोंदणी करा',
-                        style: TextStyle(
-                          color: primaryGreen,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 16),
                   ],
-                ),
-              ],
+
+                  if (_errorMessage != null) ...[
+                    RashkarNoticeCallout(
+                      title: 'Sign in error',
+                      message: _errorMessage!,
+                      isDanger: true,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Farmer Email / मोबाईल किंवा ईमेल',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!val.contains('@')) {
+                        return 'Please enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password / पासवर्ड',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 22),
+
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _handleSignIn,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('Sign In / साइन इन करा'),
+                  ),
+                  const SizedBox(height: 14),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'New farmer? ',
+                        style: TextStyle(color: RashkarColors.mutedInk, fontSize: 13),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/register'),
+                        child: const Text('Create Account / नोंदणी करा'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

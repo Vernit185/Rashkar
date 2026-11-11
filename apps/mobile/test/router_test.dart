@@ -145,8 +145,8 @@ void main() {
       await tester.pumpWidget(CropNetApp(routerConfig: router));
       await tester.pumpAndSettle();
 
-      expect(find.text('My Registered Farms'), findsOneWidget);
-      expect(find.text('Baramati Pilot Plot'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
+      expect(find.textContaining('Baramati Pilot Plot'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('Deep links directly to /soil-testing without crashing', (tester) async {
@@ -263,7 +263,7 @@ void main() {
       await tester.tap(find.text('Return to Dashboard'));
       await tester.pumpAndSettle();
 
-      expect(find.text('My Registered Farms'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
     });
 
     testWidgets('Gracefully handles missing farm ID in subroute /soil-testing/non-existent-farm', (tester) async {
@@ -285,15 +285,15 @@ void main() {
       await tester.pumpAndSettle();
 
       // Initially at Home
-      expect(find.text('My Registered Farms'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
 
       // Switch to Soil branch
       await tester.tap(find.text('Soil').first);
       await tester.pumpAndSettle();
       expect(find.text('Soil Intelligence'), findsOneWidget);
 
-      // Switch to Advisory branch
-      await tester.tap(find.text('Advisory').first);
+      // Switch to Ask Rashkar (Advisory) branch
+      await tester.tap(find.text('Ask Rashkar').first);
       await tester.pumpAndSettle();
       expect(find.byType(AdvisoryScreen), findsOneWidget);
 
@@ -302,10 +302,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Assessment History'), findsOneWidget);
 
-      // Switch back to Farms branch
-      await tester.tap(find.text('Farms').first);
+      // Switch back to Home branch
+      await tester.tap(find.text('Home').first);
       await tester.pumpAndSettle();
-      expect(find.text('My Registered Farms'), findsOneWidget);
+      expect(find.text('What would you like to do?'), findsOneWidget);
 
       // Advance fake clock past ApiClient timeout so no pending timers remain
       await tester.pump(const Duration(seconds: 31));
@@ -323,15 +323,15 @@ void main() {
       final riskRouter = createCropNetRouter(initialLocation: RoutePaths.riskCropHeat);
       await tester.pumpWidget(CropNetApp(routerConfig: riskRouter));
       await tester.pump();
-      expect(find.text('Farm & Worker Heat Risk'), findsOneWidget);
-      expect(find.text('Worker Heat Risk'), findsOneWidget);
-      expect(find.text('Crop Heat Risk'), findsOneWidget);
+      expect(find.text('Heat Risk Check'), findsOneWidget);
+      expect(find.text('Worker Heat Risk'), findsAtLeastNWidgets(1));
+      expect(find.text('Crop Heat Risk'), findsAtLeastNWidgets(1));
       await tester.pump(const Duration(seconds: 31));
 
       final incomeRouter = createCropNetRouter(initialLocation: RoutePaths.extraIncome);
       await tester.pumpWidget(CropNetApp(routerConfig: incomeRouter));
       await tester.pump();
-      expect(find.text('Extra Income & Diversification'), findsOneWidget);
+      expect(find.text('Earn More'), findsAtLeastNWidgets(1));
       await tester.pump(const Duration(seconds: 31));
     });
   });

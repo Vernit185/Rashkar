@@ -3,9 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../shared/responsive/breakpoints.dart';
-import '../../../../shared/widgets/app_decorations.dart';
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/app_spacing.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../../../../shared/widgets/responsive_scaffold.dart';
 import '../../data/scheme_repository.dart';
 import '../../models/scheme_models.dart';
@@ -104,6 +105,7 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
   @override
   Widget build(BuildContext context) {
     return ResponsiveScaffold(
+      backgroundColor: RashkarColors.canvas,
       currentIndex: 0,
       destinations: const [],
       appBar: AppBar(
@@ -128,9 +130,17 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildSearchBar(),
-            AppSpacing.verticalSpaceMD,
-            _buildFilters(),
+            RashkarCard(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSearchBar(),
+                  AppSpacing.verticalSpaceMD,
+                  _buildFilters(),
+                ],
+              ),
+            ),
             AppSpacing.verticalSpaceMD,
             Expanded(child: _buildContent()),
           ],
@@ -153,16 +163,6 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
             _searchController.clear();
             _fetchSchemes();
           },
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        border: const OutlineInputBorder(
-          borderRadius: AppBorderRadius.allMD,
-          borderSide: BorderSide(color: AppDecorations.borderLight),
-        ),
-        enabledBorder: const OutlineInputBorder(
-          borderRadius: AppBorderRadius.allMD,
-          borderSide: BorderSide(color: AppDecorations.borderLight),
         ),
       ),
     );

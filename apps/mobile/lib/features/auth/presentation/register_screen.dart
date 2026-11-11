@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
+import '../../../../shared/widgets/rashkar_ui.dart';
 import '../auth_service.dart';
 
-/// Farmer registration screen for CropNet AI.
+/// Farmer registration screen for CropNet AI styled in the Rashkar Figma palette.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -78,220 +80,161 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryGreen = Color(0xFF2E7D32);
     final isConfigured = AuthService.instance.isConfigured;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: RashkarColors.canvas,
       body: SafeArea(
         child: CenteredPageContainer(
-          maxWidth: 440,
+          maxWidth: 460,
           scrollable: true,
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: primaryGreen.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 32),
+          child: RashkarCard(
+            padding: const EdgeInsets.all(26),
+            borderRadius: 22,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Center(
+                    child: RashkarLogoBadge(size: 52, showWordmark: true),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Farmer Registration',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: RashkarColors.ink,
+                      letterSpacing: -0.3,
                     ),
-                    child: const Icon(
-                      Icons.person_add_alt_1_rounded,
-                      size: 44,
-                      color: primaryGreen,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'शेतकरी नोंदणी — Create your unified farm & risk profile',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: RashkarColors.mutedInk,
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Farmer Registration',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1B5E20),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'शेतकरी नोंदणी — CropNet AI खात्यात सामील व्हा',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF616161),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                  const SizedBox(height: 20),
 
-                if (!isConfigured)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3CD),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFEEBA)),
+                  if (!isConfigured) ...[
+                    const RashkarNoticeCallout(
+                      title: 'Development Mode',
+                      message: 'Supabase not configured. Direct access available.',
                     ),
-                    child: const Text(
-                      'Development Mode: Supabase not configured. Direct access available.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF856404)),
-                    ),
-                  ),
-
-                if (_successMessage != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFC8E6C9)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.check_circle_outline, color: primaryGreen, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _successMessage!,
-                            style: const TextStyle(fontSize: 13, color: primaryGreen),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                if (_errorMessage != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFEBEE),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFCDD2)),
-                    ),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(fontSize: 13, color: Color(0xFFC62828)),
-                    ),
-                  ),
-
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email Address / ईमेल पत्ता',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  validator: (val) {
-                    if (val == null || val.trim().isEmpty) {
-                      return 'Please enter your email';
-                    }
-                    if (!val.contains('@')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password / पासवर्ड',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                    ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  validator: (val) {
-                    if (val == null || val.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm Password / पासवर्ड पुष्टी करा',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      ),
-                      onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                    ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  validator: (val) {
-                    if (val != _passwordController.text) {
-                      return 'Passwords do not match';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _handleSignUp,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Register Account / खाते तयार करा',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Already registered? / आधीच नोंदणी केली आहे? '),
-                    TextButton(
-                      onPressed: () => context.go('/login'),
-                      child: const Text(
-                        'Sign In / साइन इन करा',
-                        style: TextStyle(
-                          color: primaryGreen,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    const SizedBox(height: 16),
                   ],
-                ),
-              ],
+
+                  if (_successMessage != null) ...[
+                    RashkarNoticeCallout(title: 'Account created', message: _successMessage!),
+                    const SizedBox(height: 14),
+                  ],
+
+                  if (_errorMessage != null) ...[
+                    RashkarNoticeCallout(title: 'Registration issue', message: _errorMessage!, isDanger: true),
+                    const SizedBox(height: 14),
+                  ],
+
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email Address / ईमेल पत्ता',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Please enter your email';
+                      }
+                      if (!val.contains('@')) {
+                        return 'Please enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Password / पासवर्ड',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  TextFormField(
+                    controller: _confirmPasswordController,
+                    obscureText: _obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm Password / पासवर्ड पुष्टी करा',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                        ),
+                        onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                      ),
+                    ),
+                    validator: (val) {
+                      if (val != _passwordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 22),
+
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _handleSignUp,
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text('Register Account / खाते तयार करा'),
+                  ),
+                  const SizedBox(height: 14),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Already registered? ',
+                        style: TextStyle(color: RashkarColors.mutedInk, fontSize: 13),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/login'),
+                        child: const Text('Sign In / साइन इन करा'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),

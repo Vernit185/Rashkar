@@ -112,6 +112,10 @@ class FarmRepository extends ChangeNotifier {
       for (final f in realFarms) {
         _farms.add(FarmItem.fromFarm(f));
       }
+      if (_farms.isNotEmpty &&
+          (_selectedFarmId == null || !_farms.any((f) => f.id == _selectedFarmId))) {
+        _selectedFarmId = _farms.first.id;
+      }
     } catch (e) {
       _error = e.toString();
     } finally {

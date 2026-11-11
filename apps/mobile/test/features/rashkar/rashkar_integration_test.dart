@@ -553,7 +553,7 @@ void main() {
       await scrollAndTap(tester, find.text('Save Resource Profile & Discover Opportunities'));
 
       expect(repo.incomeProfileMissing, isFalse);
-      expect(find.text('Find Extra Income from Your Farm'), findsOneWidget);
+      expect(find.text('Earn More'), findsAtLeastNWidgets(1));
       expect(find.text('On-Farm NADEP Residue Composting'), findsAtLeastNWidgets(1));
 
       // Open 6-question farmer summary sheet
