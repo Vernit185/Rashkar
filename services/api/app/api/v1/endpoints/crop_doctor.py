@@ -1,5 +1,6 @@
 """Crop Doctor — image-based crop disease recognition endpoint."""
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 
 from cropnet.services.api.app.services.crop_doctor import inference
 from cropnet.services.api.app.services.crop_doctor.advice import PREVENTION_TIPS
@@ -10,7 +11,7 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 @router.get("/status")
-async def crop_doctor_status():
+def crop_doctor_status():
     """Report whether the optional vision model stack is loaded."""
     return inference.model_status()
 
@@ -25,14 +26,14 @@ async def predict_crop_disease(file: UploadFile = File(...)):
             detail="Please upload a JPEG or PNG image of the affected crop leaf.",
         )
 
-    content = await file.read()
+    content = await file.read(MAX_IMAGE_BYTES + 1)
     if not content:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded image is empty.")
     if len(content) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image exceeds the 10 MB limit.")
 
     try:
-        result = inference.get_prediction(content)
+        result = await run_in_threadpool(inference.get_prediction, content)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
     except Exception as exc:

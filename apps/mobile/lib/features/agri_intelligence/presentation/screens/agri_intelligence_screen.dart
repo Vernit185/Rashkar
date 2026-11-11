@@ -2,18 +2,22 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cropnet_mobile/core/router/farm_state.dart';
+import 'package:cropnet_mobile/core/utils/native_file_picker.dart';
+import 'package:cropnet_mobile/main.dart';
+import 'package:cropnet_mobile/core/network/api_exception.dart';
 
-import '../../../../core/utils/native_file_picker.dart';
 import '../../../../shared/responsive/breakpoints.dart';
-import '../../../../shared/widgets/app_decorations.dart';
-import '../../../../shared/widgets/app_spacing.dart';
+import '../../../../shared/theme/rashkar_tokens.dart';
+import '../../../../shared/theme/rashkar_components.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
 import '../../../../shared/widgets/responsive_scaffold.dart';
 import '../../data/agri_repository.dart';
 import '../../models/agri_models.dart';
 
-/// Consolidated Agri Intelligence hub: Crop Doctor (image diagnosis) and Heat Risk
-/// (crop heat-stress + worker heat-hazard), backed by the consolidated FastAPI APIs.
+/// RASHKAR Design Language - Agri Intelligence Screen
+/// Features:
+/// 1. Crop Doctor: Image-based disease screening with preliminary AI badge
+/// 2. Heat Risk: 11-crop stage physiology, growth stage selector, worker WBGT advisory
 class AgriIntelligenceScreen extends StatefulWidget {
   final AgriIntelligenceRepository? repository;
   final int initialTab;
@@ -24,10 +28,9 @@ class AgriIntelligenceScreen extends StatefulWidget {
   State<AgriIntelligenceScreen> createState() => _AgriIntelligenceScreenState();
 }
 
-class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
-    with SingleTickerProviderStateMixin {
+class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen> {
   late final AgriIntelligenceRepository _repo;
-  late final TabController _tabs;
+  int _activeTab = 0; // 0: Crop Doctor, 1: Heat Risk
 
   // Crop Doctor state
   PlatformFile? _picked;
@@ -58,7 +61,7 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
   String? _cropHeatError;
 
   // Farm heat-risk state
-  List<dynamic> _farms = const [];
+  List<FarmItem> _farms = const [];
   String? _selectedFarmId;
   bool _farmRiskLoading = false;
   FarmHeatRiskResult? _farmRiskResult;
@@ -69,7 +72,7 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
   final _rhCtrl = TextEditingController(text: '60');
   final _windCtrl = TextEditingController(text: '1.5');
   final _solarCtrl = TextEditingController(text: '700');
-  String _workload = 'moderate';
+  String _workload = 'heavy';
   bool _workerHeatLoading = false;
   WorkerHeatResult? _workerHeatResult;
   String? _workerHeatError;
@@ -78,7 +81,7 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
   void initState() {
     super.initState();
     _repo = widget.repository ?? AgriIntelligenceRepository.instance;
-    _tabs = TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
+    _activeTab = widget.initialTab;
     _loadFarms();
   }
 
@@ -87,44 +90,22 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
       if (FarmRepository.instance.farms.isEmpty) {
         await FarmRepository.instance.loadFarms();
       }
+      final list = FarmRepository.instance.farms;
       if (!mounted) return;
       setState(() {
-        _farms = FarmRepository.instance.farms;
-        if (_selectedFarmId == null && _farms.isNotEmpty) {
-          _selectedFarmId = _farms.first.id as String;
+        _farms = list;
+        if (list.isNotEmpty) {
+          _selectedFarmId = FarmRepository.instance.selectedFarmId ?? list.first.id;
         }
       });
-    } catch (_) {
-      // Farm list is optional; the rest of the hub still works.
-    }
-  }
-
-  Future<void> _assessFarmHeat() async {
-    final farmId = _selectedFarmId;
-    if (farmId == null) return;
-    setState(() {
-      _farmRiskLoading = true;
-      _farmRiskError = null;
-    });
-    try {
-      final res = await _repo.assessFarmHeat(farmId, cropCode: _cropCode);
-      if (!mounted) return;
-      setState(() {
-        _farmRiskResult = res;
-        _farmRiskLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _farmRiskLoading = false;
-        _farmRiskError = e.toString().replaceAll('Exception: ', '');
-      });
-    }
+      if (_selectedFarmId != null) {
+        _assessFarmHeat();
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
-    _tabs.dispose();
     _tmaxCtrl.dispose();
     _tminCtrl.dispose();
     _airTempCtrl.dispose();
@@ -148,7 +129,10 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
         );
       }
     } catch (_) {
-      picked = null;
+      if (mounted) {
+        setState(() => _doctorError = 'Could not open the photo chooser. Please try again.');
+      }
+      return;
     }
     if (picked == null) return;
     setState(() {
@@ -164,7 +148,9 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
     setState(() {
       _analyzing = true;
       _doctorError = null;
+      _doctorResult = null;
     });
+
     try {
       final bytes = await file.readAsBytes();
       final name = file.name.toLowerCase();
@@ -182,7 +168,33 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
       if (!mounted) return;
       setState(() {
         _analyzing = false;
-        _doctorError = e.toString().replaceAll('Exception: ', '');
+        _doctorError = e is ApiException ? e.message : 'The photo could not be analysed. Please try again.';
+      });
+    }
+  }
+
+  Future<void> _assessFarmHeat() async {
+    final fid = _selectedFarmId;
+    if (fid == null) return;
+    setState(() {
+      _farmRiskLoading = true;
+      _farmRiskError = null;
+    });
+    try {
+      final res = await _repo.assessFarmHeat(
+        fid,
+        cropCode: _cropCode,
+      );
+      if (!mounted) return;
+      setState(() {
+        _farmRiskResult = res;
+        _farmRiskLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _farmRiskLoading = false;
+        _farmRiskError = e.toString().replaceAll('Exception: ', '');
       });
     }
   }
@@ -242,231 +254,411 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: ResponsiveScaffold(
-        currentIndex: 0,
-        destinations: const [],
-        appBar: AppBar(
-          title: const Text('Agri Intelligence', style: TextStyle(fontWeight: FontWeight.bold)),
-          bottom: TabBar(
-            controller: _tabs,
-            tabs: const [
-              Tab(icon: Icon(Icons.local_florist), text: 'Crop Doctor'),
-              Tab(icon: Icon(Icons.thermostat), text: 'Heat Risk'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          controller: _tabs,
-          children: [_buildCropDoctorTab(), _buildHeatRiskTab()],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCropDoctorTab() {
-    return CenteredPageContainer(
-      maxWidth: AppBreakpoints.maxContentWidthReadable,
-      scrollable: true,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _infoBanner(
-            'Image-based crop disease screening. Upload a clear photo of the affected leaf. '
-            'This is a screening aid — confirm with a local agronomist before chemical treatment.',
-          ),
-          AppSpacing.verticalSpaceMD,
-          OutlinedButton.icon(
-            onPressed: _pickAndAnalyze,
-            icon: const Icon(Icons.image_outlined),
-            label: Text(_picked == null ? 'Select leaf image (JPG/PNG)' : 'Change image'),
-          ),
-          if (_picked != null) ...[
-            AppSpacing.verticalSpaceSM,
-            Text('Selected: ${_picked!.name}', style: const TextStyle(fontSize: 12.5)),
-            AppSpacing.verticalSpaceSM,
-            FilledButton.icon(
-              onPressed: _analyzing || _picked == null ? null : _analyzeCrop,
-              icon: _analyzing
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.search),
-              label: Text(_analyzing ? 'Analyzing…' : 'Analyze leaf'),
+    return ResponsiveScaffold(
+      currentIndex: 0,
+      destinations: const [],
+      body: CenteredPageContainer(
+        maxWidth: AppBreakpoints.maxContentWidthReadable,
+        scrollable: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const RashkarPageHeader(
+              title: 'Agri Intelligence',
+              subtitle: 'Crop Doctor screening and stage-specific heat risk physiology',
             ),
+            const SizedBox(height: 12),
+            RashkarSegmentedControl<int>(
+              options: const {
+                0: 'Crop Doctor',
+                1: 'Heat Risk',
+              },
+              selected: _activeTab,
+              onSelected: (v) => setState(() => _activeTab = v),
+            ),
+            const SizedBox(height: 20),
+            if (_activeTab == 0) _buildCropDoctorTab() else _buildHeatRiskTab(),
           ],
-          if (_doctorError != null) ...[
-            AppSpacing.verticalSpaceMD,
-            _errorCard(_doctorError!),
-          ],
-          if (_doctorResult != null) ...[
-            AppSpacing.verticalSpaceMD,
-            _doctorResultCard(_doctorResult!),
-          ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _doctorResultCard(CropDoctorResult r) {
-    final color = r.isHealthy ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
-    return Container(
-      decoration: AppDecorations.card(),
-      padding: AppSpacing.paddingAllLG,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  // ---------------------------------------------------------------------------
+  // CROP DOCTOR TAB
+  // ---------------------------------------------------------------------------
+  Widget _buildCropDoctorTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const RashkarNotice(
+          title: 'Screening Aid',
+          message:
+              'Image-based screening assistance. Always verify diagnoses with an accredited local agronomy extension service before chemical pesticide or fungicide intervention.',
+          type: RashkarNoticeType.info,
+        ),
+        const SizedBox(height: 16),
+        RashkarCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(r.isHealthy ? Icons.check_circle : Icons.warning_amber, color: color),
-              AppSpacing.horizontalSpaceSM,
-              Expanded(
-                child: Text('${r.crop} — ${r.diagnosis}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              ),
-            ],
-          ),
-          AppSpacing.verticalSpaceXS,
-          Text('Confidence: ${r.confidence.toStringAsFixed(1)}%',
-              style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-          AppSpacing.verticalSpaceSM,
-          const Text('Preventive / management advice:', style: TextStyle(fontWeight: FontWeight.w600)),
-          for (final tip in r.advice)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.chevron_right, size: 18, color: AppDecorations.leafGreen),
-                  Expanded(child: Text(tip, style: const TextStyle(fontSize: 13))),
+                  Text('Leaf Image Capture', style: RashkarTypography.cardTitle),
+                  RashkarPreliminaryBadge(),
                 ],
               ),
+              const SizedBox(height: 8),
+              const Text(
+                'Upload a clear, focused image of the affected plant leaf showing discoloration, pustules, or lesions.',
+                style: RashkarTypography.body,
+              ),
+              const SizedBox(height: 16),
+              RashkarButton(
+                label: _picked == null ? 'Select Leaf Photo' : 'Change Selected Photo',
+                leadingIcon: Icons.camera_alt_outlined,
+                variant: RashkarButtonVariant.accent,
+                onPressed: _analyzing ? null : _pickAndAnalyze,
+              ),
+              if (_picked != null) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12.0),
+                  decoration: const BoxDecoration(
+                    color: RashkarColors.sand,
+                    borderRadius: RashkarRadii.buttonBorderRadius,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.image_outlined, color: RashkarColors.forest, size: 22),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _picked!.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                RashkarButton(
+                  label: _analyzing ? 'Analyzing Leaf Pattern...' : 'Run Disease Diagnosis',
+                  leadingIcon: Icons.search_rounded,
+                  isLoading: _analyzing,
+                  onPressed: _analyzing ? null : _analyzeCrop,
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (_doctorError != null) ...[
+          const SizedBox(height: 16),
+          RashkarNotice(
+            title: 'Diagnosis Failed',
+            message: _doctorError!,
+            type: RashkarNoticeType.error,
+          ),
+        ],
+        if (_doctorResult != null) ...[
+          const SizedBox(height: 16),
+          _buildDoctorResultCard(_doctorResult!),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDoctorResultCard(CropDoctorResult r) {
+    final status = r.isHealthy ? RashkarStatusLevel.low : RashkarStatusLevel.high;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: RashkarColors.white,
+        borderRadius: RashkarRadii.cardBorderRadius,
+        border: Border.all(color: RashkarColors.line, width: 1.0),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            color: status.softColor,
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: status.color,
+                    borderRadius: RashkarRadii.iconTileBorderRadius,
+                  ),
+                  child: Icon(status.icon, color: Colors.white, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              r.diagnosis,
+                              style: TextStyle(
+                                fontFamily: RashkarTypography.primaryFont,
+                                fontSize: 18.0,
+                                fontWeight: FontWeight.w800,
+                                color: status.textColor,
+                              ),
+                            ),
+                          ),
+                          const RashkarPreliminaryBadge(),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Crop: ${r.crop} • Confidence: ${r.confidence.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w600,
+                          color: status.textColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          if (r.disclaimer != null) ...[
-            AppSpacing.verticalSpaceSM,
-            Text(r.disclaimer!, style: const TextStyle(fontSize: 11.5, color: Colors.black54)),
-          ],
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Management & Cultural Practices', style: RashkarTypography.cardTitle),
+                    RashkarListenButton(),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                for (final tip in r.advice)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 3.0),
+                          width: 18,
+                          height: 18,
+                          decoration: const BoxDecoration(
+                            color: RashkarColors.leafSoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check_rounded, color: RashkarColors.forest, size: 12),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(tip, style: RashkarTypography.body),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (r.disclaimer != null) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  Text(r.disclaimer!, style: RashkarTypography.meta),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // HEAT RISK TAB
+  // ---------------------------------------------------------------------------
   Widget _buildHeatRiskTab() {
-    return CenteredPageContainer(
-      maxWidth: AppBreakpoints.maxContentWidthReadable,
-      scrollable: true,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildFarmHeatSection(),
-          const Divider(height: 28),
-          _sectionTitle('Crop Heat-Stress Assessment'),
-          const Text('Verified thermal physiology for soybean, cotton, jowar and onion.',
-              style: TextStyle(fontSize: 12, color: Colors.black54)),
-          AppSpacing.verticalSpaceSM,
-          DropdownButtonFormField<String>(
-            initialValue: _cropCode,
-            decoration: const InputDecoration(labelText: 'Crop', border: OutlineInputBorder()),
-            items: const [
-              DropdownMenuItem(value: 'soybean', child: Text('Soybean')),
-              DropdownMenuItem(value: 'cotton', child: Text('Cotton')),
-              DropdownMenuItem(value: 'jowar', child: Text('Sorghum (Jowar)')),
-              DropdownMenuItem(value: 'onion', child: Text('Onion')),
-              DropdownMenuItem(value: 'sugarcane', child: Text('Sugarcane')),
-              DropdownMenuItem(value: 'wheat', child: Text('Wheat')),
-              DropdownMenuItem(value: 'gram', child: Text('Chickpea (Gram)')),
-              DropdownMenuItem(value: 'tur', child: Text('Pigeon Pea (Tur)')),
-              DropdownMenuItem(value: 'bajra', child: Text('Pearl Millet (Bajra)')),
-              DropdownMenuItem(value: 'maize', child: Text('Maize')),
-              DropdownMenuItem(value: 'groundnut', child: Text('Groundnut')),
-            ],
-            onChanged: (v) => setState(() {
-              _cropCode = v ?? 'soybean';
-              _selectedCropStage = null;
-            }),
-          ),
-          AppSpacing.verticalSpaceSM,
-          DropdownButtonFormField<String>(
-            initialValue: _selectedCropStage,
-            decoration: const InputDecoration(
-              labelText: 'Growth stage (optional — auto-derived from DAS if omitted)',
-              border: OutlineInputBorder(),
-            ),
-            items: (_cropStages[_cropCode] ?? const [])
-                .map((s) => DropdownMenuItem<String>(value: s, child: Text(_stageLabel(s))))
-                .toList(),
-            onChanged: (v) => setState(() => _selectedCropStage = v),
-          ),
-          AppSpacing.verticalSpaceSM,
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildFarmHeatSection(),
+        const SizedBox(height: 24),
+        const Text('Crop Heat-Stress Simulation', style: RashkarTypography.sectionTitle),
+        const SizedBox(height: 4),
+        const Text(
+          'Verified thermal physiology for 11 crops across key vegetative and reproductive stages.',
+          style: RashkarTypography.meta,
+        ),
+        const SizedBox(height: 14),
+        RashkarCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _numberField(_tmaxCtrl, 'Forecast max °C')),
-              AppSpacing.horizontalSpaceSM,
-              Expanded(child: _numberField(_tminCtrl, 'Forecast min °C')),
+              DropdownButtonFormField<String>(
+                initialValue: _cropCode,
+                decoration: const InputDecoration(labelText: 'Crop Species'),
+                items: const [
+                  DropdownMenuItem(value: 'soybean', child: Text('Soybean')),
+                  DropdownMenuItem(value: 'cotton', child: Text('Cotton')),
+                  DropdownMenuItem(value: 'jowar', child: Text('Sorghum (Jowar)')),
+                  DropdownMenuItem(value: 'onion', child: Text('Onion')),
+                  DropdownMenuItem(value: 'sugarcane', child: Text('Sugarcane')),
+                  DropdownMenuItem(value: 'wheat', child: Text('Wheat')),
+                  DropdownMenuItem(value: 'gram', child: Text('Chickpea (Gram)')),
+                  DropdownMenuItem(value: 'tur', child: Text('Pigeon Pea (Tur)')),
+                  DropdownMenuItem(value: 'bajra', child: Text('Pearl Millet (Bajra)')),
+                  DropdownMenuItem(value: 'maize', child: Text('Maize')),
+                  DropdownMenuItem(value: 'groundnut', child: Text('Groundnut')),
+                ],
+                onChanged: (v) => setState(() {
+                  _cropCode = v ?? 'soybean';
+                  _selectedCropStage = null;
+                }),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCropStage,
+                decoration: const InputDecoration(
+                  labelText: 'Growth Stage (optional — auto-derived if omitted)',
+                ),
+                items: (_cropStages[_cropCode] ?? const [])
+                    .map((s) => DropdownMenuItem<String>(value: s, child: Text(_stageLabel(s))))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedCropStage = v),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _tmaxCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Forecast Max °C'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _tminCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Forecast Min °C'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              RashkarButton(
+                label: _cropHeatLoading ? 'Assessing Thermal Risk...' : 'Assess Crop Heat Risk',
+                leadingIcon: Icons.thermostat_rounded,
+                isLoading: _cropHeatLoading,
+                onPressed: _cropHeatLoading ? null : _assessCropHeat,
+              ),
             ],
           ),
-          AppSpacing.verticalSpaceSM,
-          FilledButton.icon(
-            onPressed: _cropHeatLoading ? null : _assessCropHeat,
-            icon: _cropHeatLoading
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.thermostat),
-            label: const Text('Assess crop heat'),
-          ),
-          if (_cropHeatError != null) ...[AppSpacing.verticalSpaceSM, _errorCard(_cropHeatError!)],
-          if (_cropHeatResult != null) ...[
-            AppSpacing.verticalSpaceSM,
-            _cropHeatCard(_cropHeatResult!),
-          ],
-          const Divider(height: 32),
-          _sectionTitle('Worker Heat-Hazard (WBGT)'),
-          const Text('ACGIH 2023 / ISO 7243:2017 screening limits.',
-              style: TextStyle(fontSize: 12, color: Colors.black54)),
-          AppSpacing.verticalSpaceSM,
-          Row(
-            children: [
-              Expanded(child: _numberField(_airTempCtrl, 'Air temp °C')),
-              AppSpacing.horizontalSpaceSM,
-              Expanded(child: _numberField(_rhCtrl, 'Humidity %')),
-            ],
-          ),
-          AppSpacing.verticalSpaceSM,
-          Row(
-            children: [
-              Expanded(child: _numberField(_windCtrl, 'Wind m/s')),
-              AppSpacing.horizontalSpaceSM,
-              Expanded(child: _numberField(_solarCtrl, 'Solar W/m²')),
-            ],
-          ),
-          AppSpacing.verticalSpaceSM,
-          DropdownButtonFormField<String>(
-            initialValue: _workload,
-            decoration: const InputDecoration(labelText: 'Workload', border: OutlineInputBorder()),
-            items: const [
-              DropdownMenuItem(value: 'light', child: Text('Light')),
-              DropdownMenuItem(value: 'moderate', child: Text('Moderate')),
-              DropdownMenuItem(value: 'heavy', child: Text('Heavy')),
-              DropdownMenuItem(value: 'very_heavy', child: Text('Very heavy')),
-            ],
-            onChanged: (v) => setState(() => _workload = v ?? 'moderate'),
-          ),
-          AppSpacing.verticalSpaceSM,
-          FilledButton.icon(
-            onPressed: _workerHeatLoading ? null : _assessWorkerHeat,
-            icon: _workerHeatLoading
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.engineering),
-            label: const Text('Assess worker heat'),
-          ),
-          if (_workerHeatError != null) ...[AppSpacing.verticalSpaceSM, _errorCard(_workerHeatError!)],
-          if (_workerHeatResult != null) ...[
-            AppSpacing.verticalSpaceSM,
-            _workerHeatCard(_workerHeatResult!),
-          ],
-          AppSpacing.verticalSpaceXXL,
+        ),
+        if (_cropHeatError != null) ...[
+          const SizedBox(height: 16),
+          RashkarNotice(title: 'Assessment Error', message: _cropHeatError!, type: RashkarNoticeType.error),
         ],
-      ),
+        if (_cropHeatResult != null) ...[
+          const SizedBox(height: 16),
+          _buildCropHeatCard(_cropHeatResult!),
+        ],
+        const SizedBox(height: 28),
+        const Text('Worker Heat-Hazard (WBGT Advisory)', style: RashkarTypography.sectionTitle),
+        const SizedBox(height: 4),
+        const Text(
+          'ACGIH 2023 / ISO 7243:2017 screening limits for field workers under radiant solar load.',
+          style: RashkarTypography.meta,
+        ),
+        const SizedBox(height: 14),
+        RashkarCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _airTempCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Air Temp °C'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _rhCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Relative Humidity %'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _windCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Wind Speed m/s'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _solarCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Solar W/m²'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _workload,
+                decoration: const InputDecoration(labelText: 'Physical Workload Category'),
+                items: const [
+                  DropdownMenuItem(value: 'light', child: Text('Light (inspection / driving)')),
+                  DropdownMenuItem(value: 'moderate', child: Text('Moderate (weeding / spraying)')),
+                  DropdownMenuItem(value: 'heavy', child: Text('Heavy (harvesting / digging)')),
+                  DropdownMenuItem(value: 'very_heavy', child: Text('Very Heavy (manual tilling)')),
+                ],
+                onChanged: (v) => setState(() => _workload = v ?? 'heavy'),
+              ),
+              const SizedBox(height: 16),
+              RashkarButton(
+                label: _workerHeatLoading ? 'Calculating WBGT...' : 'Assess Worker Heat Hazard',
+                leadingIcon: Icons.engineering_rounded,
+                variant: RashkarButtonVariant.secondary,
+                isLoading: _workerHeatLoading,
+                onPressed: _workerHeatLoading ? null : _assessWorkerHeat,
+              ),
+            ],
+          ),
+        ),
+        if (_workerHeatError != null) ...[
+          const SizedBox(height: 16),
+          RashkarNotice(title: 'Hazard Error', message: _workerHeatError!, type: RashkarNoticeType.error),
+        ],
+        if (_workerHeatResult != null) ...[
+          const SizedBox(height: 16),
+          _buildWorkerHeatCard(_workerHeatResult!),
+        ],
+        const SizedBox(height: 32),
+      ],
     );
   }
 
@@ -474,154 +666,274 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionTitle('Farm Heat Risk (weather-backed)'),
+        const Text('Active Farm Heat Outlook', style: RashkarTypography.sectionTitle),
+        const SizedBox(height: 4),
         const Text(
-          "Uses the farm's live weather forecast and its crop context. Assessment is marked as limited when data is missing.",
-          style: TextStyle(fontSize: 12, color: Colors.black54),
+          'Uses active 5-day weather forecast and crop growth context.',
+          style: RashkarTypography.meta,
         ),
-        AppSpacing.verticalSpaceSM,
+        const SizedBox(height: 14),
         if (_farms.isEmpty)
-          const Text('No farms available. Create a farm first.', style: TextStyle(fontSize: 12, color: Colors.black54))
+          const RashkarNotice(
+            title: 'No Farms Configured',
+            message: 'Create or select a farm to assess location-specific heat risk.',
+            type: RashkarNoticeType.info,
+          )
         else
-          DropdownButtonFormField<String>(
-            initialValue: _selectedFarmId,
-            decoration: const InputDecoration(labelText: 'Farm', border: OutlineInputBorder()),
-            items: _farms
-                .map((f) => DropdownMenuItem<String>(
-                      value: f.id as String,
-                      child: Text(f.name as String),
-                    ))
-                .toList(),
-            onChanged: (v) => setState(() => _selectedFarmId = v),
+          RashkarCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedFarmId,
+                  decoration: const InputDecoration(labelText: 'Selected Farm'),
+                  items: _farms
+                      .map((f) => DropdownMenuItem<String>(
+                            value: f.id,
+                            child: Text(f.name),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedFarmId = v),
+                ),
+                const SizedBox(height: 16),
+                RashkarButton(
+                  label: _farmRiskLoading ? 'Retrieving Forecast & Risk...' : 'Run Farm Heat Outlook',
+                  leadingIcon: Icons.wb_sunny_rounded,
+                  isLoading: _farmRiskLoading,
+                  onPressed: _farmRiskLoading || _selectedFarmId == null ? null : _assessFarmHeat,
+                ),
+              ],
+            ),
           ),
-        AppSpacing.verticalSpaceSM,
-        FilledButton.icon(
-          onPressed: _farmRiskLoading || _selectedFarmId == null ? null : _assessFarmHeat,
-          icon: _farmRiskLoading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.thermostat),
-          label: const Text('Assess farm heat risk'),
-        ),
-        if (_farmRiskError != null) ...[AppSpacing.verticalSpaceSM, _errorCard(_farmRiskError!)],
-        if (_farmRiskResult != null) ...[AppSpacing.verticalSpaceSM, _farmRiskCard(_farmRiskResult!)],
+        if (_farmRiskError != null) ...[
+          const SizedBox(height: 16),
+          RashkarNotice(title: 'Farm Risk Error', message: _farmRiskError!, type: RashkarNoticeType.error),
+        ],
+        if (_farmRiskResult != null) ...[
+          const SizedBox(height: 16),
+          _buildFarmRiskCard(_farmRiskResult!),
+        ],
       ],
     );
   }
 
-  Widget _farmRiskCard(FarmHeatRiskResult r) {
-    final color = switch (r.riskCategory) {
-      'CRITICAL' => const Color(0xFFC62828),
-      'HIGH' => const Color(0xFFE65100),
-      'MODERATE' => const Color(0xFFF9A825),
-      _ => const Color(0xFF2E7D32),
-    };
+  Widget _buildFarmRiskCard(FarmHeatRiskResult r) {
+    final status = RashkarStatusLevel.fromString(r.riskCategory);
+
     return Container(
-      decoration: AppDecorations.card(),
-      padding: AppSpacing.paddingAllLG,
+      decoration: BoxDecoration(
+        color: RashkarColors.white,
+        borderRadius: RashkarRadii.cardBorderRadius,
+        border: Border.all(color: RashkarColors.line, width: 1.0),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('${r.farmName} • ${r.cropCommonName} • ${r.stageName}',
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          AppSpacing.verticalSpaceXS,
-          Text('${r.riskLabel} (${r.riskCategory})',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: color)),
-          Text(
-            'Forecast ${r.tmax.toStringAsFixed(1)}°C / ${r.tmin.toStringAsFixed(1)}°C • '
-            '${r.hoursAbove.toStringAsFixed(1)} h above critical • warm night: ${r.warmNight ? "Yes" : "No"}',
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          Container(
+            color: status.softColor,
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: status.color,
+                    borderRadius: RashkarRadii.iconTileBorderRadius,
+                  ),
+                  child: Icon(status.icon, color: Colors.white, size: 26),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            r.riskLabel,
+                            style: TextStyle(
+                              fontFamily: RashkarTypography.primaryFont,
+                              fontSize: 18.0,
+                              fontWeight: FontWeight.w800,
+                              color: status.textColor,
+                            ),
+                          ),
+                          RashkarStatusPill(status: status),
+                        ],
+                      ),
+                      Text(
+                        '${r.farmName} • ${r.cropCommonName} (${r.stageName})',
+                        style: TextStyle(fontSize: 13.0, color: status.textColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          if (r.dailyOutlook.isNotEmpty) ...[
-            AppSpacing.verticalSpaceSM,
-            const Text('Multi-day outlook', style: TextStyle(fontWeight: FontWeight.w600)),
-            for (final d in r.dailyOutlook)
-              Text('${d["date"]}: ${d["tmax_c"]}°C / ${d["tmin_c"]}°C — ${d["risk_category"]}',
-                  style: const TextStyle(fontSize: 12)),
-          ],
-          if (r.interventions.isNotEmpty) ...[
-            AppSpacing.verticalSpaceSM,
-            const Text('Recommended interventions', style: TextStyle(fontWeight: FontWeight.w600)),
-            for (final i in r.interventions)
-              Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text('• ${i["title"]}: ${i["description"]}', style: const TextStyle(fontSize: 12)),
-              ),
-          ],
-          if (r.limitations.isNotEmpty) ...[
-            AppSpacing.verticalSpaceSM,
-            const Text('Assessment limitations',
-                style: TextStyle(fontWeight: FontWeight.w600, color: Colors.orange)),
-            for (final l in r.limitations)
-              Text('• $l', style: const TextStyle(fontSize: 11.5, color: Colors.black54)),
-          ],
-          AppSpacing.verticalSpaceXS,
-          Text(r.provenance, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RashkarFourSegmentMeter(level: status.level, activeColor: status.color),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.only(left: 10.0),
+                  decoration: BoxDecoration(
+                    border: Border(left: BorderSide(color: status.color, width: 4.0)),
+                  ),
+                  child: Text(
+                    'Forecast maximum ${r.tmax.toStringAsFixed(1)}°C / minimum ${r.tmin.toStringAsFixed(1)}°C. '
+                    'Expected ${r.hoursAbove.toStringAsFixed(1)} hours above physiological critical threshold. '
+                    'Warm night stress: ${r.warmNight ? "Detected" : "None"}.',
+                    style: RashkarTypography.body,
+                  ),
+                ),
+                if (r.dailyOutlook.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('5-Day Thermal Outlook', style: RashkarTypography.cardTitle),
+                  const SizedBox(height: 8),
+                  for (final d in r.dailyOutlook)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              d["date"]?.toString() ?? '',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              '${d["tmax_c"]}°C / ${d["tmin_c"]}°C',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: RashkarStatusPill(
+                                status: RashkarStatusLevel.fromString(d["risk_category"]?.toString()),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                if (r.interventions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Prescribed Field Interventions', style: RashkarTypography.cardTitle),
+                  const SizedBox(height: 8),
+                  for (final i in r.interventions)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(top: 4.0),
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: RashkarColors.forest,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: RichText(
+                              text: TextSpan(
+                                style: const TextStyle(color: RashkarColors.ink, fontSize: 13.5),
+                                children: [
+                                  TextSpan(
+                                    text: '${i["title"]}: ',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                  TextSpan(text: i["description"]?.toString() ?? ''),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(r.provenance, style: RashkarTypography.meta),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _cropHeatCard(CropHeatResult r) {
-    final color = switch (r.riskCategory) {
-      'CRITICAL' => const Color(0xFFC62828),
-      'HIGH' => const Color(0xFFE65100),
-      'MODERATE' => const Color(0xFFF9A825),
-      _ => const Color(0xFF2E7D32),
-    };
-    return Container(
-      decoration: AppDecorations.card(),
-      padding: AppSpacing.paddingAllLG,
+  Widget _buildCropHeatCard(CropHeatResult r) {
+    final status = RashkarStatusLevel.fromString(r.riskCategory);
+
+    return RashkarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.thermostat, color: color),
-            AppSpacing.horizontalSpaceSM,
-            Text('${r.riskLabel} (${r.riskCategory})',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: color)),
-          ]),
-          AppSpacing.verticalSpaceXS,
-          Text(r.explanation, style: const TextStyle(fontSize: 13)),
-          AppSpacing.verticalSpaceXS,
-          Text('Stage: ${r.stageName} • GDD: ${r.gdd} • Warm night: ${r.warmNightHazard ? "Yes" : "No"}',
-              style: const TextStyle(fontSize: 12, color: Colors.black54)),
-          AppSpacing.verticalSpaceXS,
-          Text(r.evidenceCitation, style: const TextStyle(fontSize: 11, color: Colors.black45)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('${r.riskLabel} Risk', style: RashkarTypography.cardTitle),
+              RashkarStatusPill(status: status),
+            ],
+          ),
+          const SizedBox(height: 10),
+          RashkarFourSegmentMeter(level: status.level, activeColor: status.color),
+          const SizedBox(height: 12),
+          Text(r.explanation, style: RashkarTypography.body),
+          const SizedBox(height: 8),
+          Text(
+            'Stage: ${r.stageName} • Thermal GDD: ${r.gdd} • Warm night stress: ${r.warmNightHazard ? "Yes" : "No"}',
+            style: RashkarTypography.meta,
+          ),
+          const SizedBox(height: 8),
+          Text(r.evidenceCitation, style: const TextStyle(fontSize: 11, color: RashkarColors.muted)),
         ],
       ),
     );
   }
 
-  Widget _workerHeatCard(WorkerHeatResult r) {
-    final color = switch (r.hazardLevel) {
-      'EXTREME' => const Color(0xFFC62828),
-      'HIGH' => const Color(0xFFE65100),
-      'MODERATE' => const Color(0xFFF9A825),
-      _ => const Color(0xFF2E7D32),
-    };
-    return Container(
-      decoration: AppDecorations.card(),
-      padding: AppSpacing.paddingAllLG,
+  Widget _buildWorkerHeatCard(WorkerHeatResult r) {
+    final status = RashkarStatusLevel.fromString(r.hazardLevel);
+
+    return RashkarCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(Icons.engineering, color: color),
-            AppSpacing.horizontalSpaceSM,
-            Text('${r.hazardLevel} hazard',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: color)),
-          ]),
-          AppSpacing.verticalSpaceXS,
-          Text('WBGT: ${r.wbgt.toStringAsFixed(1)}°C • Effective: ${r.wbgtEffective.toStringAsFixed(1)}°C '
-              '• Threshold: ${r.threshold.toStringAsFixed(1)}°C',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          AppSpacing.verticalSpaceXS,
-          Text(r.recommendation, style: const TextStyle(fontSize: 13)),
-          AppSpacing.verticalSpaceXS,
-          Text('Work/rest: ${r.workRestCycle}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-          if (r.heatIndex != null)
-            Text('Heat index: ${r.heatIndex!.toStringAsFixed(1)}°C${r.utci != null ? " • UTCI: ${r.utci!.toStringAsFixed(1)}°C" : ""}',
-                style: const TextStyle(fontSize: 11.5, color: Colors.black45)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('${r.hazardLevel} Hazard Level', style: RashkarTypography.cardTitle),
+              RashkarStatusPill(status: status),
+            ],
+          ),
+          const SizedBox(height: 10),
+          RashkarFourSegmentMeter(level: status.level, activeColor: status.color),
+          const SizedBox(height: 12),
+          Text(
+            'WBGT: ${r.wbgt.toStringAsFixed(1)}°C • Effective WBGT: ${r.wbgtEffective.toStringAsFixed(1)}°C • ACGIH Threshold: ${r.threshold.toStringAsFixed(1)}°C',
+            style: const TextStyle(fontSize: 14.0, fontWeight: FontWeight.w700, color: RashkarColors.ink),
+          ),
+          const SizedBox(height: 8),
+          Text(r.recommendation, style: RashkarTypography.body),
+          const SizedBox(height: 6),
+          Text('Recommended Work/Rest Cycle: ${r.workRestCycle}', style: RashkarTypography.meta),
         ],
       ),
     );
@@ -632,44 +944,4 @@ class _AgriIntelligenceScreenState extends State<AgriIntelligenceScreen>
     if (cleaned.isEmpty) return code;
     return '${cleaned[0].toUpperCase()}${cleaned.substring(1)}';
   }
-
-  Widget _infoBanner(String text) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFDE7),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFFD54F)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.balance, color: Color(0xFFF57F17), size: 22),
-          AppSpacing.horizontalSpaceSM,
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, height: 1.35))),
-        ],
-      ),
-    );
-  }
-
-  Widget _sectionTitle(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 2),
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-      );
-
-  Widget _numberField(TextEditingController controller, String label) => TextField(
-        controller: controller,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), isDense: true),
-      );
-
-  Widget _errorCard(String message) => Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFEBEE),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFEF9A9A)),
-        ),
-        child: Text(message, style: const TextStyle(color: Color(0xFFB71C1C), fontSize: 12.5)),
-      );
 }

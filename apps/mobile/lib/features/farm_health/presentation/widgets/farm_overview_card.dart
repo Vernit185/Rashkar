@@ -31,7 +31,7 @@ class FarmOverviewCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Card(
-      elevation: 2,
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -40,15 +40,8 @@ class FarmOverviewCard extends StatelessWidget {
           // Header banner
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.primary.withValues(alpha: 0.82),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF214E34), // RashkarColors.forest (solid, no gradients)
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,

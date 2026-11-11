@@ -1,5 +1,7 @@
 /// Named route constants for CropNet AI router.
 abstract final class RouteNames {
+  static const String splash = 'splash';
+  static const String onboarding = 'onboarding';
   static const String home = 'home';
   static const String soilTesting = 'soilTesting';
   static const String cropRecommendation = 'cropRecommendation';
@@ -30,12 +32,13 @@ abstract final class RouteNames {
 
   // Government Schemes names
   static const String schemes = 'schemes';
+  static const String cropDoctor = 'cropDoctor';
+  static const String risk = 'risk';
+  static const String riskWorkerHeat = 'riskWorkerHeat';
+  static const String riskCropHeat = 'riskCropHeat';
+  static const String extraIncome = 'extraIncome';
   static const String schemeDetail = 'schemeDetail';
   static const String schemesAdmin = 'schemesAdmin';
   static const String schemesAdminNew = 'schemesAdminNew';
   static const String schemesAdminEdit = 'schemesAdminEdit';
-
-  // Consolidated agri-intelligence hub
-  static const String agriIntelligence = 'agriIntelligence';
-  static const String heatRisk = 'heatRisk';
 }

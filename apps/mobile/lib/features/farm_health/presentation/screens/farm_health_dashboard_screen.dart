@@ -161,7 +161,7 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
         padding: const EdgeInsets.symmetric(vertical: 60),
         child: Center(
           child: Card(
-            elevation: 1,
+            elevation: 0,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             child: Padding(
               padding: const EdgeInsets.all(24.0),
@@ -514,7 +514,7 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
   // ---------------------------------------------------------------------------
   Widget _buildQuickNavShortcuts(BuildContext context) {
     return Card(
-      elevation: 2,
+      elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(18.0),

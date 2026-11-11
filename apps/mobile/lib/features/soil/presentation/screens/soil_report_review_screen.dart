@@ -868,11 +868,9 @@ class _SoilReportReviewScreenState extends State<SoilReportReviewScreen> {
               style: TextStyle(fontSize: 12, color: Colors.black87, height: 1.35),
             ),
             const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                borderRadius: BorderRadius.circular(8),
-              ),
+            Material(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(8),
               child: CheckboxListTile(
                 value: _notifier.confirmationAccepted,
                 onChanged: _notifier.toggleConfirmationCheck,

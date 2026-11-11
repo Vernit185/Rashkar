@@ -3,15 +3,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/route_paths.dart';
 import '../../../../shared/responsive/breakpoints.dart';
-import '../../../../shared/widgets/app_decorations.dart';
-import '../../../../shared/widgets/app_spacing.dart';
+import '../../../../shared/theme/rashkar_tokens.dart';
+import '../../../../shared/theme/rashkar_components.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
 import '../../../../shared/widgets/responsive_scaffold.dart';
 import '../../data/scheme_repository.dart';
 import '../../models/scheme_models.dart';
 import '../widgets/scheme_card.dart';
 
-/// Government Schemes dashboard with search, filters and a responsive card grid.
+/// RASHKAR Design Language - Government Schemes Screen (Section 4 List Pattern)
+/// Filter chips (selected = ink with white text), search input, cards with 1px line border,
+/// 18px radius, no shadow, and centered empty state.
 class SchemesListScreen extends StatefulWidget {
   final SchemeRepository? repository;
 
@@ -52,18 +54,14 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
     try {
       final isAdmin = await _repository.isAdmin();
       if (mounted) setState(() => _isAdmin = isAdmin);
-    } catch (_) {
-      // Admin status is optional; keep false on failure.
-    }
+    } catch (_) {}
   }
 
   Future<void> _loadFilterOptions() async {
     try {
       final options = await _repository.getFilterOptions();
       if (mounted) setState(() => _filterOptions = options);
-    } catch (_) {
-      // Fall back to the canonical category list.
-    }
+    } catch (_) {}
   }
 
   Future<void> _fetchSchemes() async {
@@ -71,29 +69,29 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
+
     try {
-      final schemes = await _repository.listSchemes(
-        search: _searchController.text,
+      final results = await _repository.listSchemes(
+        search: _searchController.text.trim().isEmpty ? null : _searchController.text.trim(),
         category: _selectedCategory,
         governmentLevel: _selectedLevel,
         state: _selectedState,
-        status: 'ACTIVE',
       );
-      if (!mounted) return;
-      setState(() {
-        _schemes = schemes;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _schemes = results;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
     }
   }
-
-  void _onSearchSubmitted(String value) => _fetchSchemes();
 
   @override
   void dispose() {
@@ -104,34 +102,25 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
   @override
   Widget build(BuildContext context) {
     return ResponsiveScaffold(
-      currentIndex: 0,
+      currentIndex: 6,
       destinations: const [],
-      appBar: AppBar(
-        title: const Text('Government Schemes', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-            onPressed: _fetchSchemes,
-          ),
-          if (_isAdmin)
-            IconButton(
-              icon: const Icon(Icons.admin_panel_settings_outlined),
-              tooltip: 'Manage Schemes',
-              onPressed: () => context.push(RoutePaths.schemesAdmin),
-            ),
-        ],
-      ),
       body: CenteredPageContainer(
-        maxWidth: AppBreakpoints.maxContentWidthWide,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        maxWidth: AppBreakpoints.maxContentWidthReadable,
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            RashkarPageHeader(
+              title: 'Government Schemes',
+              subtitle: 'Subsidies, credit facilities and state-sponsored agricultural support',
+              rightIcon: _isAdmin ? Icons.admin_panel_settings_outlined : null,
+              onRightIconTap: _isAdmin ? () => context.push(RoutePaths.schemesAdmin) : null,
+            ),
+            const SizedBox(height: 12),
             _buildSearchBar(),
-            AppSpacing.verticalSpaceMD,
-            _buildFilters(),
-            AppSpacing.verticalSpaceMD,
+            const SizedBox(height: 14),
+            _buildFilterSection(),
+            const SizedBox(height: 16),
             Expanded(child: _buildContent()),
           ],
         ),
@@ -142,74 +131,64 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
   Widget _buildSearchBar() {
     return TextField(
       controller: _searchController,
-      onSubmitted: _onSearchSubmitted,
-      textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        hintText: 'Search schemes by name, description or department…',
-        prefixIcon: const Icon(Icons.search),
-        suffixIcon: IconButton(
-          icon: const Icon(Icons.clear),
-          onPressed: () {
-            _searchController.clear();
-            _fetchSchemes();
-          },
-        ),
-        filled: true,
-        fillColor: Colors.white,
-        border: const OutlineInputBorder(
-          borderRadius: AppBorderRadius.allMD,
-          borderSide: BorderSide(color: AppDecorations.borderLight),
-        ),
-        enabledBorder: const OutlineInputBorder(
-          borderRadius: AppBorderRadius.allMD,
-          borderSide: BorderSide(color: AppDecorations.borderLight),
-        ),
+        hintText: 'Search schemes by title, keyword, or subsidy...',
+        prefixIcon: const Icon(Icons.search_rounded, color: RashkarColors.muted),
+        suffixIcon: _searchController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear_rounded, size: 20, color: RashkarColors.muted),
+                onPressed: () {
+                  _searchController.clear();
+                  _fetchSchemes();
+                },
+              )
+            : null,
       ),
+      onSubmitted: (_) => _fetchSchemes(),
     );
   }
 
-  Widget _buildFilters() {
-    final categories = _filterOptions.categories.isNotEmpty
-        ? _filterOptions.categories
-        : kSchemeCategories;
+  Widget _buildFilterSection() {
+    final categories = _filterOptions.categories;
     final states = _filterOptions.states;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Category Chips (selected = ink with white text)
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
               _filterChip('All Categories', null, _selectedCategory == null),
-              for (final category in categories)
-                _filterChip(category, category, _selectedCategory == category),
+              for (final cat in categories)
+                _filterChip(cat, cat, _selectedCategory == cat),
             ],
           ),
         ),
-        AppSpacing.verticalSpaceSM,
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: AppSpacing.xs,
-          runSpacing: AppSpacing.xs,
+        const SizedBox(height: 10),
+        // Level Chips & State Selector
+        Row(
           children: [
             _filterChip('All Levels', null, _selectedLevel == null),
             _filterChip('Central', 'Central', _selectedLevel == 'Central'),
             _filterChip('State', 'State', _selectedLevel == 'State'),
-            if (states.isNotEmpty) _buildStateDropdown(states),
+            if (states.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              _buildStateDropdown(states),
+            ],
           ],
         ),
       ],
     );
   }
 
+  // Spec 4 List Screen: selected = ink with white text
   Widget _filterChip(String label, String? value, bool selected) {
     return Padding(
-      padding: const EdgeInsets.only(right: AppSpacing.xs),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) {
+      padding: const EdgeInsets.only(right: 8.0),
+      child: GestureDetector(
+        onTap: () {
           setState(() {
             if (value == null && label.startsWith('All Categories')) {
               _selectedCategory = null;
@@ -223,49 +202,91 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
           });
           _fetchSchemes();
         },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 7.0),
+          decoration: BoxDecoration(
+            color: selected ? RashkarColors.ink : RashkarColors.sand,
+            borderRadius: RashkarRadii.pillBorderRadius,
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontFamily: RashkarTypography.primaryFont,
+              fontSize: 12.5,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? Colors.white : RashkarColors.ink,
+            ),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildStateDropdown(List<String> states) {
-    return DropdownButton<String>(
-      value: _selectedState,
-      hint: const Text('All States', style: TextStyle(fontSize: 13)),
-      isDense: true,
-      underline: const SizedBox.shrink(),
-      items: [
-        const DropdownMenuItem<String>(value: null, child: Text('All States')),
-        for (final state in states) DropdownMenuItem<String>(value: state, child: Text(state)),
-      ],
-      onChanged: (value) {
-        setState(() => _selectedState = value);
-        _fetchSchemes();
-      },
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+      decoration: const BoxDecoration(
+        color: RashkarColors.sand,
+        borderRadius: RashkarRadii.pillBorderRadius,
+      ),
+      child: DropdownButton<String>(
+        value: _selectedState,
+        hint: const Text('All States', style: TextStyle(fontSize: 12.5, color: RashkarColors.ink)),
+        isDense: true,
+        underline: const SizedBox.shrink(),
+        items: [
+          const DropdownMenuItem<String>(value: null, child: Text('All States')),
+          for (final state in states) DropdownMenuItem<String>(value: state, child: Text(state)),
+        ],
+        onChanged: (val) {
+          setState(() => _selectedState = val);
+          _fetchSchemes();
+        },
+      ),
     );
   }
 
   Widget _buildContent() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(strokeWidth: 3, color: RashkarColors.forest),
+            ),
+            SizedBox(height: 12),
+            Text('Loading government schemes...', style: RashkarTypography.meta),
+          ],
+        ),
+      );
     }
 
     if (_errorMessage != null) {
-      return _buildErrorState();
+      return Center(
+        child: RashkarNotice(
+          title: 'Unable to Load Schemes',
+          message: _errorMessage!,
+          type: RashkarNoticeType.error,
+        ),
+      );
     }
 
     if (_schemes.isEmpty) {
-      return _buildEmptyState();
+      return const RashkarEmptyState(
+        icon: Icons.account_balance_outlined,
+        title: 'No Schemes Found',
+        subtitle: 'No government schemes match the selected category and level filters.',
+      );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.only(bottom: 24),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 360,
-        mainAxisExtent: 220,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 24.0),
       itemCount: _schemes.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 12.0),
       itemBuilder: (context, index) {
         final scheme = _schemes[index];
         return SchemeCard(
@@ -273,42 +294,6 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
           onTap: () => context.push(RoutePaths.schemeDetailPath(scheme.id)),
         );
       },
-    );
-  }
-
-  Widget _buildErrorState() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
-          AppSpacing.verticalSpaceMD,
-          const Text('Could not load Government Schemes.',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          AppSpacing.verticalSpaceXS,
-          Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.blueGrey)),
-          AppSpacing.verticalSpaceMD,
-          FilledButton.icon(
-            onPressed: _fetchSchemes,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Retry'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.account_balance_outlined, size: 48, color: Colors.blueGrey),
-          SizedBox(height: 12),
-          Text('No schemes match your filters.',
-              style: TextStyle(fontWeight: FontWeight.w600, color: Colors.blueGrey)),
-        ],
-      ),
     );
   }
 }

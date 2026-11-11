@@ -70,3 +70,11 @@ infra/db/backups/*.json
 *.gpkg
 *.tar.gz
 data_cache/
+
+# Local Dev, Scratch & Backups
+*.bak*
+scratch/
+graphify-out/
+cropnet/
+data/
+flutter_client/

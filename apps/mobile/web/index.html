@@ -45,7 +45,14 @@
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
   <script>
-    // Invalidate stale prototype service workers to ensure fresh JS execution
+    // Invalidate stale prototype service workers and CacheStorage to ensure fresh JS execution
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (var name of names) {
+          caches.delete(name);
+        }
+      });
+    }
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for (var registration of registrations) {

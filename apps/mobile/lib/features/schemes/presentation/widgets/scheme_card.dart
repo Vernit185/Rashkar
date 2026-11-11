@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
-
-import '../../../../shared/widgets/app_decorations.dart';
-import '../../../../shared/widgets/app_spacing.dart';
+import '../../../../shared/theme/rashkar_tokens.dart';
+import '../../../../shared/theme/rashkar_components.dart';
 import '../../models/scheme_models.dart';
 
-/// Colour and icon accent for each scheme category.
 Color schemeCategoryColor(String category) {
   switch (category) {
     case 'Crop Insurance':
       return const Color(0xFF00695C);
     case 'Financial Assistance':
-      return const Color(0xFF2E7D32);
+      return RashkarColors.forest;
     case 'Loans':
       return const Color(0xFF1565C0);
     case 'Irrigation':
@@ -22,11 +20,11 @@ Color schemeCategoryColor(String category) {
     case 'Seeds & Fertilizers':
       return const Color(0xFF6A1B9A);
     case 'Infrastructure':
-      return const Color(0xFFE65100);
+      return RashkarColors.orange;
     case 'State Schemes':
       return const Color(0xFFAD1457);
     default:
-      return AppDecorations.leafGreen;
+      return RashkarColors.leaf;
   }
 }
 
@@ -55,7 +53,8 @@ IconData schemeCategoryIcon(String category) {
   }
 }
 
-/// A compact Government Scheme card shown in the dashboard grid.
+/// RASHKAR Design Language - Government Scheme Card (Spec 2 & Section 4 List Pattern)
+/// White, 1px line border, 18px radius, no shadow.
 class SchemeCard extends StatelessWidget {
   final GovernmentScheme scheme;
   final VoidCallback onTap;
@@ -64,74 +63,95 @@ class SchemeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = schemeCategoryColor(scheme.category);
-    return InkWell(
+    final status = scheme.isVerified ? RashkarStatusLevel.low : RashkarStatusLevel.moderate;
+
+    return RashkarCard(
       onTap: onTap,
-      borderRadius: AppBorderRadius.card,
-      child: Container(
-        decoration: AppDecorations.accentCard(accentColor: accent),
-        padding: AppSpacing.paddingAllMD,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: accent.withValues(alpha: 0.12),
-                  foregroundColor: accent,
-                  child: Icon(schemeCategoryIcon(scheme.category), size: 20),
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 44px Icon tile
+              Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  color: RashkarColors.leafSoft,
+                  borderRadius: RashkarRadii.iconTileBorderRadius,
                 ),
-                AppSpacing.horizontalSpaceSM,
-                Expanded(
+                child: Icon(
+                  schemeCategoryIcon(scheme.category),
+                  size: 22,
+                  color: RashkarColors.forest,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      scheme.schemeName,
+                      style: RashkarTypography.cardTitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${scheme.category} • ${scheme.governmentLevel}',
+                      style: RashkarTypography.meta,
+                    ),
+                  ],
+                ),
+              ),
+              RashkarStatusPill(status: status),
+            ],
+          ),
+          if (scheme.description != null && scheme.description!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              scheme.description!,
+              style: RashkarTypography.body,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          const SizedBox(height: 12),
+          // Progress bar / Meta indicators
+          Row(
+            children: [
+              if (scheme.state != null && scheme.state!.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                  margin: const EdgeInsets.only(right: 6.0),
+                  decoration: const BoxDecoration(
+                    color: RashkarColors.sand,
+                    borderRadius: RashkarRadii.pillBorderRadius,
+                  ),
                   child: Text(
-                    scheme.schemeName,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    scheme.state!,
+                    style: const TextStyle(fontSize: 11.0, fontWeight: FontWeight.w600, color: RashkarColors.ink),
                   ),
                 ),
-              ],
-            ),
-            AppSpacing.verticalSpaceSM,
-            Wrap(
-              spacing: AppSpacing.xs,
-              runSpacing: AppSpacing.xs,
-              children: [
-                _chip(scheme.category, accent),
-                _chip(scheme.governmentLevel, Colors.blueGrey),
-                if (scheme.state != null && scheme.state!.isNotEmpty)
-                  _chip(scheme.state!, Colors.indigo),
-                if (!scheme.isVerified) _chip('Not verified', Colors.orange),
-              ],
-            ),
-            if (scheme.description != null && scheme.description!.isNotEmpty) ...[
-              AppSpacing.verticalSpaceSM,
-              Text(
-                scheme.description!,
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              const Spacer(),
+              const Text(
+                'View Details',
+                style: TextStyle(
+                  fontFamily: RashkarTypography.primaryFont,
+                  fontSize: 13.0,
+                  fontWeight: FontWeight.w700,
+                  color: RashkarColors.forest,
+                ),
               ),
+              const SizedBox(width: 4),
+              const Icon(Icons.arrow_forward_rounded, size: 16, color: RashkarColors.forest),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _chip(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: AppBorderRadius.pill,
-      ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+          ),
+        ],
       ),
     );
   }

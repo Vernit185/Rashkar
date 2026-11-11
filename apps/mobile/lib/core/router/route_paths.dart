@@ -1,5 +1,9 @@
 /// Route path constants for CropNet AI navigation and URL synchronization.
 abstract final class RoutePaths {
+  /// Startup Splash & First-time Farmer Onboarding
+  static const String splash = '/splash';
+  static const String onboarding = '/onboarding';
+
   /// Home / Dashboard (My Farms)
   static const String home = '/';
 
@@ -66,6 +70,17 @@ abstract final class RoutePaths {
   /// Government Schemes catalogue: /schemes
   static const String schemes = '/schemes';
 
+  /// Crop Doctor AI Pathology & Diagnostics
+  static const String cropDoctor = '/crop-doctor';
+
+  /// Unified Heat Risk Hub (Worker Heat Risk & Crop Heat Risk)
+  static const String risk = '/risk';
+  static const String riskWorkerHeat = '/risk/worker-heat';
+  static const String riskCropHeat = '/risk/crop-heat';
+
+  /// Extra Income & Diversification
+  static const String extraIncome = '/extra-income';
+
   /// Government Scheme detail: /schemes/:schemeId
   static const String schemeDetail = '/schemes/:schemeId';
 
@@ -77,12 +92,6 @@ abstract final class RoutePaths {
 
   /// Government Schemes admin — edit: /schemes/admin/:schemeId/edit
   static const String schemesAdminEdit = '/schemes/admin/:schemeId/edit';
-
-  /// Consolidated agri-intelligence hub (Crop Doctor + Heat Risk): /agri-intelligence
-  static const String agriIntelligence = '/agri-intelligence';
-
-  /// Dedicated Heat Risk workspace: /heat-risk
-  static const String heatRisk = '/heat-risk';
 
   // --- Parameter Path Helper Methods ---
 
