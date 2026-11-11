@@ -726,70 +726,134 @@ class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // 1. SIMPLE GREETING & ACTIVE FARM CONTEXT
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        if (isNarrow) ...[
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _greetingText(),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: RashkarColors.ink,
+                  letterSpacing: -0.3,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                farm.name,
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  color: RashkarColors.mutedInk,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  Text(
-                    _greetingText(),
-                    style: const TextStyle(
-                       fontSize: 26,
-                       fontWeight: FontWeight.w800,
-                       color: RashkarColors.ink,
-                       height: 1.15,
-                     ),
-                   ),
-                   const SizedBox(height: 4),
-                   Text(
-                     farm.name,
-                     style: const TextStyle(
-                       fontSize: 15,
-                       color: RashkarColors.mutedInk,
-                       fontWeight: FontWeight.w600,
-                     ),
-                   ),
+                  if (widget.farms.length > 1)
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        minimumSize: const Size(0, 36),
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                      label: const Text('Switch Farm'),
+                      onPressed: () => showRashkarFarmPickerModal(
+                        context: context,
+                        farms: widget.farms,
+                        selectedFarmId: farm.id,
+                        onSelected: (f) {
+                          repo.selectFarm(f.id);
+                          _syncSelectedFarmSummary(force: true);
+                        },
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: const Size(0, 36),
+                      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+                    label: const Text('New Farm Wizard'),
+                    onPressed: () => context.push(RoutePaths.onboarding),
+                  ),
                 ],
               ),
-            ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              alignment: WrapAlignment.end,
-              children: [
-                if (widget.farms.length > 1)
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                    label: const Text('Switch Farm'),
-                    onPressed: () => showRashkarFarmPickerModal(
-                      context: context,
-                      farms: widget.farms,
-                      selectedFarmId: farm.id,
-                      onSelected: (f) {
-                        repo.selectFarm(f.id);
-                        _syncSelectedFarmSummary(force: true);
-                      },
+            ],
+          ),
+        ] else ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _greetingText(),
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        color: RashkarColors.ink,
+                        letterSpacing: -0.4,
+                        height: 1.15,
+                      ),
                     ),
-                  ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.add_location_alt_outlined, size: 16),
-                  label: const Text('New Farm Wizard'),
-                  onPressed: () => context.push(RoutePaths.onboarding),
+                    const SizedBox(height: 4),
+                    Text(
+                      farm.name,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: RashkarColors.mutedInk,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                alignment: WrapAlignment.end,
+                children: [
+                  if (widget.farms.length > 1)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                      label: const Text('Switch Farm'),
+                      onPressed: () => showRashkarFarmPickerModal(
+                        context: context,
+                        farms: widget.farms,
+                        selectedFarmId: farm.id,
+                        onSelected: (f) {
+                          repo.selectFarm(f.id);
+                          _syncSelectedFarmSummary(force: true);
+                        },
+                      ),
+                    ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+                    label: const Text('New Farm Wizard'),
+                    onPressed: () => context.push(RoutePaths.onboarding),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
 
         // 2. TODAY ON YOUR FARM (AgriNova gentle mint overview with crisp white status cards)
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             color: RashkarColors.softMint,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: RashkarColors.paleSage, width: 1),
           ),
           child: Column(
@@ -1261,25 +1325,25 @@ class _PrimaryHomeActionCard extends StatelessWidget {
     return Material(
       color: RashkarColors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: RashkarColors.border, width: 1),
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: RashkarColors.paleSage, width: 1),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 92),
-          padding: const EdgeInsets.all(18),
+          constraints: const BoxConstraints(minHeight: 88),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: RashkarColors.mintBg,
-                  borderRadius: BorderRadius.circular(8),
+                  color: RashkarColors.softMint,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: RashkarColors.forest, size: 26),
+                child: Icon(icon, color: RashkarColors.forest, size: 24),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1290,25 +1354,25 @@ class _PrimaryHomeActionCard extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 16.5,
+                        fontWeight: FontWeight.w700,
                         color: RashkarColors.ink,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13.5,
                         color: RashkarColors.mutedInk,
-                        height: 1.3,
+                        height: 1.35,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, color: RashkarColors.forest, size: 24),
+              const Icon(Icons.chevron_right_rounded, color: RashkarColors.mutedInk, size: 22),
             ],
           ),
         ),

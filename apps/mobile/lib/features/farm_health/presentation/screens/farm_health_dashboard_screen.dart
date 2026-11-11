@@ -17,6 +17,7 @@ import '../widgets/satellite_vegetation_card.dart';
 import '../widgets/soil_intelligence_card.dart';
 import '../widgets/water_intelligence_card.dart';
 import '../widgets/weather_summary_card.dart';
+import '../../../../shared/theme/rashkar_colors.dart';
 
 /// Unified Farm Health Dashboard Screen (Phase 5.9B)
 ///
@@ -145,58 +146,46 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
     String conclusion;
     String nextStep;
     IconData icon;
-    Color accentColor;
 
     if (hasSoil && hasWater && hasWeather) {
       conclusion = 'Complete agricultural information is available for your farm across soil, water, and weather.';
       nextStep = 'Review your seasonal crop advice and heat forecasts below.';
       icon = Icons.verified_outlined;
-      accentColor = const Color(0xFF1B5E20);
     } else if (hasWeather && !hasSoil) {
       conclusion = 'We have weather and satellite observations, but soil test information is still missing.';
       nextStep = 'Add your soil test report to unlock field-calibrated fertilizer doses.';
       icon = Icons.info_outline;
-      accentColor = const Color(0xFFE65100);
     } else if (hasSoil && !hasWater) {
       conclusion = 'We have verified soil data, but irrigation water test information is missing.';
       nextStep = 'Test your irrigation water source to guard against salinity.';
       icon = Icons.info_outline;
-      accentColor = const Color(0xFFE65100);
     } else {
       conclusion = snapshot.overallEvidenceOverview.actionableSummary.isNotEmpty
           ? snapshot.overallEvidenceOverview.actionableSummary
           : 'Some agricultural data is available, but additional farm tests are recommended.';
       nextStep = 'Add your soil test report for accurate crop nutrition guidance.';
       icon = Icons.info_outline;
-      accentColor = const Color(0xFF0277BD);
     }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withValues(alpha: 0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: RashkarColors.softMint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: RashkarColors.paleSage, width: 1.0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: accentColor, size: 24),
+              Icon(icon, color: RashkarColors.forest, size: 24),
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
                   "Your Farm's Health",
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF1E293B)),
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: RashkarColors.ink),
                 ),
               ),
             ],
@@ -204,26 +193,27 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
           const SizedBox(height: 10),
           Text(
             conclusion,
-            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1E293B), height: 1.4),
+            style: const TextStyle(fontSize: 14.5, color: RashkarColors.ink, height: 1.45),
           ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: accentColor.withValues(alpha: 0.08),
+              color: RashkarColors.surface,
               borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: RashkarColors.paleSage),
             ),
             child: Row(
               children: [
-                Icon(Icons.arrow_forward_rounded, color: accentColor, size: 18),
+                const Icon(Icons.arrow_forward_rounded, color: RashkarColors.forest, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Next step: $nextStep',
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 13.5,
-                      color: accentColor,
+                      color: RashkarColors.forestDark,
                     ),
                   ),
                 ),

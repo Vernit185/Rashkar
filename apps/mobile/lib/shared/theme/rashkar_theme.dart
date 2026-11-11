@@ -150,7 +150,7 @@ class RashkarTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           side: const BorderSide(color: RashkarColors.border, width: 1),
         ),
       ),
@@ -165,10 +165,10 @@ class RashkarTheme {
           foregroundColor: Colors.white,
           elevation: 0,
           shadowColor: Colors.transparent,
-          minimumSize: const Size(0, 50),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
           textStyle: const TextStyle(
             fontSize: 15,
@@ -181,10 +181,10 @@ class RashkarTheme {
         style: FilledButton.styleFrom(
           backgroundColor: RashkarColors.forestTint,
           foregroundColor: Colors.white,
-          minimumSize: const Size(0, 50),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
           textStyle: const TextStyle(
             fontSize: 15,
@@ -195,12 +195,12 @@ class RashkarTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           backgroundColor: RashkarColors.surface,
-          foregroundColor: RashkarColors.ink,
-          side: const BorderSide(color: RashkarColors.borderStrong, width: 1.2),
+          foregroundColor: RashkarColors.forest,
+          side: const BorderSide(color: RashkarColors.border, width: 1.2),
           minimumSize: const Size(0, 48),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
           ),
           textStyle: const TextStyle(
             fontSize: 14.5,
@@ -211,6 +211,9 @@ class RashkarTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: RashkarColors.forest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
           textStyle: const TextStyle(
             fontSize: 14.5,
             fontWeight: FontWeight.w700,
@@ -222,19 +225,19 @@ class RashkarTheme {
         fillColor: RashkarColors.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: RashkarColors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: RashkarColors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: RashkarColors.forestTint, width: 2.0),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: RashkarColors.extremeBar),
         ),
         labelStyle: const TextStyle(color: RashkarColors.mutedInk, fontSize: 14.5),

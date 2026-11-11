@@ -72,13 +72,13 @@ class AppShadows {
 class AppDecorations {
   const AppDecorations._();
 
-  // Agricultural Brand Palette Colors
-  static const Color primaryGreen = Color(0xFF1B5E20);
-  static const Color leafGreen = Color(0xFF2E7D32);
-  static const Color accentOrange = Color(0xFFE65100);
+  // Agricultural Brand Palette Colors (AgriNova Palette)
+  static const Color primaryGreen = Color(0xFF287D49);
+  static const Color leafGreen = Color(0xFF287D49);
+  static const Color accentOrange = Color(0xFFD97706);
   static const Color soilBrown = Color(0xFF5D4037);
-  static const Color surfaceMuted = Color(0xFFF9FBF9);
-  static const Color borderLight = Color(0xFFE0E0E0);
+  static const Color surfaceMuted = Color(0xFFF8FAF8);
+  static const Color borderLight = Color(0xFFDCE9DF);
 
   /// Standard card decoration.
   static BoxDecoration card({

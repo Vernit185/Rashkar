@@ -66,7 +66,6 @@ class SchemeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = schemeCategoryColor(scheme.category);
     return RashkarCard(
       padding: AppSpacing.paddingAllMD,
       onTap: onTap,
@@ -81,10 +80,11 @@ class SchemeCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  color: RashkarColors.softMint,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: RashkarColors.paleSage),
                 ),
-                child: Icon(schemeCategoryIcon(scheme.category), size: 20, color: accent),
+                child: Icon(schemeCategoryIcon(scheme.category), size: 20, color: RashkarColors.forest),
               ),
               AppSpacing.horizontalSpaceSM,
               Expanded(
@@ -106,11 +106,11 @@ class SchemeCard extends StatelessWidget {
             spacing: AppSpacing.xs,
             runSpacing: AppSpacing.xs,
             children: [
-              _chip(scheme.category, accent),
-              _chip(scheme.governmentLevel, RashkarColors.mutedInk),
+              _chip(scheme.category, isPrimary: true),
+              _chip(scheme.governmentLevel, isPrimary: false),
               if (scheme.state != null && scheme.state!.isNotEmpty)
-                _chip(scheme.state!, RashkarColors.skyFg),
-              if (!scheme.isVerified) _chip('Not verified', RashkarColors.marigoldInk),
+                _chip(scheme.state!, isPrimary: false),
+              if (!scheme.isVerified) _chip('Not verified', isWarning: true),
             ],
           ),
           if (scheme.description != null && scheme.description!.isNotEmpty) ...[
@@ -127,16 +127,31 @@ class SchemeCard extends StatelessWidget {
     );
   }
 
-  Widget _chip(String label, Color color) {
+  Widget _chip(String label, {bool isPrimary = false, bool isWarning = false}) {
+    Color bg = RashkarColors.canvas;
+    Color fg = RashkarColors.mutedInk;
+    Color border = RashkarColors.paleSage;
+
+    if (isPrimary) {
+      bg = RashkarColors.softMint;
+      fg = RashkarColors.forestDark;
+      border = RashkarColors.paleSage;
+    } else if (isWarning) {
+      bg = RashkarColors.marigoldTint;
+      fg = RashkarColors.marigoldInk;
+      border = RashkarColors.marigoldBorder;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
+        color: bg,
         borderRadius: AppBorderRadius.pill,
+        border: Border.all(color: border, width: 0.8),
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg),
       ),
     );
   }
