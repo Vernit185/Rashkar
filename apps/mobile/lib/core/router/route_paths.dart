@@ -1,5 +1,9 @@
 /// Route path constants for CropNet AI navigation and URL synchronization.
 abstract final class RoutePaths {
+  /// Startup Splash & First-time Farmer Onboarding
+  static const String splash = '/splash';
+  static const String onboarding = '/onboarding';
+
   /// Home / Dashboard (My Farms)
   static const String home = '/';
 

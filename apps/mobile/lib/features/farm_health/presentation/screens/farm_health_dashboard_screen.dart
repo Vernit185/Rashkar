@@ -104,15 +104,13 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.farm?.name ?? _snapshot?.farmName ?? 'Farm Health Dashboard';
-
     return ResponsiveScaffold(
       currentIndex: 0,
       destinations: const [], // Empty destinations preserves detail view with standard top bar
       appBar: AppBar(
-        title: Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+        title: const Text(
+          "Your Farm's Health",
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -132,6 +130,107 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
         scrollable: true,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: _buildBody(context),
+      ),
+    );
+  }
+
+  Widget _buildFarmerHealthSummary(FarmHealthSnapshotResponse snapshot) {
+    final hasSoil = snapshot.soil.availabilityState == DataAvailabilityState.available ||
+        snapshot.soil.availabilityState == DataAvailabilityState.partiallyAvailable;
+    final hasWater = snapshot.water.availabilityState == DataAvailabilityState.available ||
+        snapshot.water.availabilityState == DataAvailabilityState.partiallyAvailable;
+    final hasWeather = snapshot.weather.availabilityState == DataAvailabilityState.available ||
+        snapshot.weather.availabilityState == DataAvailabilityState.partiallyAvailable;
+
+    String conclusion;
+    String nextStep;
+    IconData icon;
+    Color accentColor;
+
+    if (hasSoil && hasWater && hasWeather) {
+      conclusion = 'Complete agricultural information is available for your farm across soil, water, and weather.';
+      nextStep = 'Review your seasonal crop advice and heat forecasts below.';
+      icon = Icons.verified_outlined;
+      accentColor = const Color(0xFF1B5E20);
+    } else if (hasWeather && !hasSoil) {
+      conclusion = 'We have weather and satellite observations, but soil test information is still missing.';
+      nextStep = 'Add your soil test report to unlock field-calibrated fertilizer doses.';
+      icon = Icons.info_outline;
+      accentColor = const Color(0xFFE65100);
+    } else if (hasSoil && !hasWater) {
+      conclusion = 'We have verified soil data, but irrigation water test information is missing.';
+      nextStep = 'Test your irrigation water source to guard against salinity.';
+      icon = Icons.info_outline;
+      accentColor = const Color(0xFFE65100);
+    } else {
+      conclusion = snapshot.overallEvidenceOverview.actionableSummary.isNotEmpty
+          ? snapshot.overallEvidenceOverview.actionableSummary
+          : 'Some agricultural data is available, but additional farm tests are recommended.';
+      nextStep = 'Add your soil test report for accurate crop nutrition guidance.';
+      icon = Icons.info_outline;
+      accentColor = const Color(0xFF0277BD);
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accentColor.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accentColor, size: 24),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  "Your Farm's Health",
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF1E293B)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            conclusion,
+            style: const TextStyle(fontSize: 14.5, color: Color(0xFF1E293B), height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.arrow_forward_rounded, color: accentColor, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Next step: $nextStep',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -208,18 +307,26 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
       content = _buildMobileLayout(context, snapshot, timelineItems);
     }
 
+    final mainLayout = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildFarmerHealthSummary(snapshot),
+        content,
+      ],
+    );
+
     if (snapshot.isFromCache) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildOfflineBanner(context, snapshot),
           const SizedBox(height: 14),
-          content,
+          mainLayout,
         ],
       );
     }
 
-    return content;
+    return mainLayout;
   }
 
   /// Prominent offline banner when viewing cached snapshots.

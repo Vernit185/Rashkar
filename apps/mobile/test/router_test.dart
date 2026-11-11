@@ -46,6 +46,8 @@ void main() {
 
   group('Route Paths & Name Constants Verification', () {
     test('Mandatory route paths are correctly structured', () {
+      expect(RoutePaths.splash, '/splash');
+      expect(RoutePaths.onboarding, '/onboarding');
       expect(RoutePaths.home, '/');
       expect(RoutePaths.soilTesting, '/soil-testing');
       expect(RoutePaths.cropRecommendation, '/crop-recommendation');
@@ -69,6 +71,8 @@ void main() {
 
     test('Route names are distinctly defined', () {
       final names = [
+        RouteNames.splash,
+        RouteNames.onboarding,
         RouteNames.home,
         RouteNames.soilTesting,
         RouteNames.cropRecommendation,
@@ -332,6 +336,19 @@ void main() {
       await tester.pumpWidget(CropNetApp(routerConfig: incomeRouter));
       await tester.pump();
       expect(find.text('Earn More'), findsAtLeastNWidgets(1));
+      await tester.pump(const Duration(seconds: 31));
+
+      final splashRouter = createCropNetRouter(initialLocation: RoutePaths.splash);
+      await tester.pumpWidget(CropNetApp(routerConfig: splashRouter));
+      await tester.pump();
+      expect(find.text('RASHKAR'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 31));
+
+      final onboardingRouter = createCropNetRouter(initialLocation: RoutePaths.onboarding);
+      await tester.pumpWidget(CropNetApp(routerConfig: onboardingRouter));
+      await tester.pump();
+      expect(find.text('What is your name?'), findsOneWidget);
+      expect(find.text('Step 1 of 6'), findsOneWidget);
       await tester.pump(const Duration(seconds: 31));
     });
   });

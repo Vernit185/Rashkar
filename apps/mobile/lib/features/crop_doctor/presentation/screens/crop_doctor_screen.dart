@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import '../../../../core/network/api_constants.dart';
 import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
 import '../../../../shared/widgets/rashkar_ui.dart';
@@ -82,6 +83,13 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
     await _diagnoseBytes(bytes: bytes, filename: file.name);
   }
 
+  String _buildApiUrl(String path) {
+    final base = ApiConstants.defaultBaseUrl.endsWith('/')
+        ? ApiConstants.defaultBaseUrl.substring(0, ApiConstants.defaultBaseUrl.length - 1)
+        : ApiConstants.defaultBaseUrl;
+    return '$base$path';
+  }
+
   Future<void> _diagnoseBytes({
     required Uint8List bytes,
     required String filename,
@@ -96,7 +104,7 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
     });
 
     try {
-      final uri = Uri.parse('/api/v1/crop-doctor/predict');
+      final uri = Uri.parse(_buildApiUrl('/api/v1/crop-doctor/predict'));
       final ext = filename.split('.').last.toLowerCase();
       final mime = switch (ext) {
         'png' => MediaType('image', 'png'),
@@ -124,13 +132,13 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
         });
       } else {
         setState(() {
-          _errorMessage = 'Server returned ${streamed.statusCode}. $body';
+          _errorMessage = "We couldn't check this photo right now. Please try again.";
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        _errorMessage = 'Upload failed: $e';
+        _errorMessage = "We couldn't check this photo right now. Please check your connection and try again.";
         _isLoading = false;
       });
     }
@@ -149,7 +157,7 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
     });
 
     try {
-      final uri = Uri.parse('/api/v1/crop-doctor/predict-sample');
+      final uri = Uri.parse(_buildApiUrl('/api/v1/crop-doctor/predict-sample'));
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
@@ -163,14 +171,13 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
         });
       } else {
         setState(() {
-          _errorMessage =
-              'Could not load sample (${response.statusCode}). Check backend.';
+          _errorMessage = "We couldn't check this photo right now. Please try again.";
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       setState(() {
-        _errorMessage = 'Network error: $e';
+        _errorMessage = "We couldn't check this photo right now. Please check your connection and try again.";
         _isLoading = false;
       });
     }
@@ -310,9 +317,24 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
         // ── Error ────────────────────────────────────────────────
         if (_errorMessage != null) ...[
           RashkarNoticeCallout(
-            title: 'Diagnosis issue',
+            title: 'Leaf check issue',
             message: _errorMessage!,
             isDanger: true,
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Try Again'),
+              onPressed: () {
+                if (_selectedSampleName != null) {
+                  _diagnoseSample(_selectedSampleName!);
+                } else {
+                  setState(() => _errorMessage = null);
+                }
+              },
+            ),
           ),
           const SizedBox(height: 14),
         ],

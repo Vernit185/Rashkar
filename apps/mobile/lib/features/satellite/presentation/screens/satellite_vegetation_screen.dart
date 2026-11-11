@@ -581,9 +581,75 @@ class _SatelliteVegetationScreenState extends State<SatelliteVegetationScreen> {
     final pureCanopyNdvi = obs.vegetationMeanNdvi ?? obs.meanNdvi;
     final pureCanopyNdmi = obs.vegetationMeanNdmi ?? obs.meanNdmi;
 
+    final double ndviVal = pureCanopyNdvi ?? 0.0;
+    final String vigorLevel = ndviVal >= 0.55
+        ? 'Healthy Green (उत्कृष्ट वाढ)'
+        : (ndviVal >= 0.35 ? 'Moderate Vigor (मध्यम वाढ)' : 'Stressed / Thin (कमी वाढ / ताण)');
+    final Color vigorColor = ndviVal >= 0.55
+        ? RashkarColors.forestTint
+        : (ndviVal >= 0.35 ? RashkarColors.marigoldInk : RashkarColors.extremeBar);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Plain Farmer-First Glance Card
+        Container(
+          margin: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: RashkarColors.border),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: vigorColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.grass_rounded, color: vigorColor, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Crop Greenness & Vigor',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: RashkarColors.mutedInk,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      vigorLevel,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: vigorColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      ndviVal >= 0.55
+                          ? 'Canopy has strong vegetation density. No immediate water deficit observed.'
+                          : (ndviVal >= 0.35
+                              ? 'Canopy is growing moderately. Check borders for moisture or nutrient deficit.'
+                              : 'Canopy is thin or moisture stressed. Inspect fields for dry patches.'),
+                      style: const TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+
         Text(
           'Vegetation Health Indicators',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(

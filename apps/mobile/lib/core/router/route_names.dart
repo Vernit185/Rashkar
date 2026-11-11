@@ -1,5 +1,7 @@
 /// Named route constants for CropNet AI router.
 abstract final class RouteNames {
+  static const String splash = 'splash';
+  static const String onboarding = 'onboarding';
   static const String home = 'home';
   static const String soilTesting = 'soilTesting';
   static const String cropRecommendation = 'cropRecommendation';

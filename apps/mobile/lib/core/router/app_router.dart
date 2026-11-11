@@ -25,6 +25,8 @@ import 'package:cropnet_mobile/features/schemes/presentation/screens/scheme_edit
 import 'package:cropnet_mobile/features/crop_doctor/presentation/screens/crop_doctor_screen.dart';
 import 'package:cropnet_mobile/features/rashkar/presentation/screens/risk_hub_screen.dart';
 import 'package:cropnet_mobile/features/rashkar/presentation/screens/extra_income_screen.dart';
+import 'package:cropnet_mobile/features/onboarding/presentation/screens/splash_screen.dart';
+import 'package:cropnet_mobile/features/onboarding/presentation/screens/farmer_onboarding_wizard.dart';
 import 'package:cropnet_mobile/main.dart';
 
 // Navigator Keys for Root and Stateful Shell Branches
@@ -54,7 +56,7 @@ final GlobalKey<NavigatorState> _shellNavigatorExtraIncome =
 
 /// Creates and configures the CropNet AI GoRouter instance.
 GoRouter createCropNetRouter({
-  String initialLocation = RoutePaths.home,
+  String initialLocation = RoutePaths.splash,
   List<NavigatorObserver>? observers,
 }) {
   return GoRouter(
@@ -481,6 +483,18 @@ GoRouter createCropNetRouter({
       ),
 
       // Standalone top-level routes
+      GoRoute(
+        path: RoutePaths.splash,
+        name: RouteNames.splash,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.onboarding,
+        name: RouteNames.onboarding,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const FarmerOnboardingWizard(),
+      ),
       GoRoute(
         path: RoutePaths.login,
         name: RouteNames.login,

@@ -1276,11 +1276,11 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
               runSpacing: 8,
               children: [
                 _buildMetricCol(
-                  opp.isCostSaving ? 'Money Needed (Est.)' : 'Starting Outlay (Est.)',
-                  opp.minInvestmentInr == 0.0 ? '₹0 (Free)' : _formatCurrency(opp.minInvestmentInr),
+                  opp.isCostSaving ? 'Money Needed (Cash)' : 'Starting Cash Needed',
+                  opp.minInvestmentInr == 0.0 ? '₹0 (Uses farm residue/labor)' : _formatCurrency(opp.minInvestmentInr),
                 ),
                 _buildMetricCol(
-                  opp.isCostSaving ? 'Annual Cost Saved (Est.)' : 'Expected Yearly Profit (Est.)',
+                  opp.isCostSaving ? 'Est. Annual Savings' : 'Est. Added Income',
                   opp.isCostSaving
                       ? '${_formatCurrency(opp.potentialAnnualSavingsInr)} / yr'
                       : '${_formatCurrency(opp.potentialAnnualProfitInr)} / yr',

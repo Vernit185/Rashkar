@@ -168,6 +168,13 @@ class _AppShellState extends State<AppShell> {
                 ),
                 const Divider(),
                 item(
+                  icon: Icons.add_location_alt_outlined,
+                  title: 'Setup New Farm (Wizard)',
+                  subtitle: 'Step-by-step onboarding for a new plot or crop',
+                  selected: false,
+                  onTap: () => context.push(RoutePaths.onboarding),
+                ),
+                item(
                   icon: Icons.landscape_outlined,
                   title: 'My Farm & Boundaries',
                   subtitle: 'View saved plots, map & edit farm details',
@@ -369,6 +376,12 @@ class _AppShellState extends State<AppShell> {
                   icon: branch == 6 ? Icons.account_balance_rounded : Icons.account_balance_outlined,
                   selected: branch == 6,
                   onTap: () => _selectBranch(6),
+                ),
+                _SidebarTaskLink(
+                  label: 'Setup New Farm',
+                  icon: Icons.add_location_alt_outlined,
+                  selected: false,
+                  onTap: () => context.push(RoutePaths.onboarding),
                 ),
                 _SidebarTaskLink(
                   label: 'Ask Rashkar',

@@ -31,6 +31,7 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
   SchemeFilterOptions _filterOptions = const SchemeFilterOptions();
   bool _isLoading = true;
   bool _isAdmin = false;
+  bool _showAllSchemes = false;
   String? _errorMessage;
 
   String? _selectedCategory;
@@ -109,7 +110,7 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
       currentIndex: 0,
       destinations: const [],
       appBar: AppBar(
-        title: const Text('Government Schemes', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Government Help', style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
@@ -130,6 +131,12 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const RashkarHeroBanner(
+              eyebrow: 'FINANCIAL ASSISTANCE & SUBSIDIES',
+              title: 'Government Help',
+              subtitle: 'Find government schemes that may help your farm.',
+            ),
+            const SizedBox(height: 14),
             RashkarCard(
               padding: const EdgeInsets.all(14),
               child: Column(
@@ -257,22 +264,55 @@ class _SchemesListScreenState extends State<SchemesListScreen> {
       return _buildEmptyState();
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.only(bottom: 24),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 360,
-        mainAxisExtent: 220,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _schemes.length,
-      itemBuilder: (context, index) {
-        final scheme = _schemes[index];
-        return SchemeCard(
-          scheme: scheme,
-          onTap: () => context.push(RoutePaths.schemeDetailPath(scheme.id)),
-        );
-      },
+    final displayList = _showAllSchemes ? _schemes : _schemes.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!_showAllSchemes && _schemes.length > 3) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'RECOMMENDED SCHEMES FOR YOUR FARM',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: RashkarColors.forest,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.arrow_forward, size: 16),
+                  label: Text('View all (${_schemes.length})'),
+                  onPressed: () => setState(() => _showAllSchemes = true),
+                ),
+              ],
+            ),
+          ),
+        ],
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.only(bottom: 24),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 360,
+              mainAxisExtent: 220,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemCount: displayList.length,
+            itemBuilder: (context, index) {
+              final scheme = displayList[index];
+              return SchemeCard(
+                scheme: scheme,
+                onTap: () => context.push(RoutePaths.schemeDetailPath(scheme.id)),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

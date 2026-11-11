@@ -85,6 +85,12 @@ class ApiConstants {
   static const String cropHeatSupportedCrops = '$apiV1Prefix/risk/crop-heat/supported-crops';
   static String farmWorkerHeat(String farmId) => '$apiV1Prefix/risk/farms/$farmId/worker-heat';
   static String farmCropHeat(String farmId) => '$apiV1Prefix/risk/farms/$farmId/crop-heat';
+  static const String cropDoctorPredict = '$apiV1Prefix/crop-doctor/predict';
+  static const String cropDoctorStatus = '$apiV1Prefix/crop-doctor/status';
+  static const String heatRiskCrop = '$apiV1Prefix/risk/crop-heat';
+  static const String heatRiskWorker = '$apiV1Prefix/risk/worker-heat';
+  static const String heatRiskCrops = '$apiV1Prefix/risk/crop-heat/supported-crops';
+  static String heatRiskFarm(String farmId) => '$apiV1Prefix/risk/farms/$farmId';
 
   // --- Rashkar Extra Income Endpoints ---
   static const String incomeOpportunities = '$apiV1Prefix/income/opportunities';

@@ -810,25 +810,25 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
     String plainRiskLabel;
     IconData statusIcon;
     if (level == 'CRITICAL' || level == 'EXTREME') {
-      statusTitle = 'Dangerously hot outdoors right now';
+      statusTitle = 'Heat conditions are dangerous for your selected work activity right now.';
       statusSub = 'Avoid heavy outdoor work and move to a cool, shaded place immediately.';
       plainRiskLabel = 'DANGER';
       statusIcon = Icons.warning_amber_rounded;
     } else if (level == 'HIGH') {
       statusTitle = w.peakRiskHourIst.isNotEmpty
-          ? 'Heat risk rises around ${w.peakRiskHourIst}'
-          : 'High heat risk outdoors';
-      statusSub = 'Complete heavy fieldwork in early morning or late afternoon, and avoid peak sun.';
+          ? 'Heat risk is expected to increase around ${w.peakRiskHourIst}.'
+          : 'Heat risk is expected to increase this afternoon.';
+      statusSub = 'Consider moving heavy fieldwork to an earlier, lower-risk period before peak heat.';
       plainRiskLabel = 'HIGH HEAT';
       statusIcon = Icons.warning_amber_rounded;
     } else if (level == 'MODERATE') {
-      statusTitle = 'Warm weather — stay hydrated and take shade breaks';
-      statusSub = 'Conditions are manageable with regular water breaks every 15–20 minutes.';
+      statusTitle = 'Warm weather today with moderate heat during peak sun.';
+      statusSub = 'Stay hydrated with regular water breaks every 15–20 minutes and rest in shade.';
       plainRiskLabel = 'MODERATE';
       statusIcon = Icons.wb_sunny_outlined;
     } else {
-      statusTitle = 'Outdoor conditions are comfortable for fieldwork right now';
-      statusSub = 'Stay hydrated throughout the day and take regular rest in shade when tired.';
+      statusTitle = 'Outdoor conditions are currently comfortable for fieldwork.';
+      statusSub = 'Stay hydrated throughout the day and rest in shade when tired.';
       plainRiskLabel = 'SAFE';
       statusIcon = Icons.check_circle_outline;
     }
@@ -865,22 +865,22 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
               _buildFarmSwitcherHeader(),
               const SizedBox(height: 14),
             ],
-            // 1. ONE-SENTENCE ASSESSED RISK & ACTION
-            Text(
-              statusTitle,
-              style: const TextStyle(
+            // 1. PAGE HEADING
+            const Text(
+              "Today's Heat Risk",
+              style: TextStyle(
                 fontSize: 23,
                 fontWeight: FontWeight.w800,
                 color: RashkarColors.ink,
                 height: 1.2,
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              statusSub,
-              style: const TextStyle(fontSize: 15, color: RashkarColors.mutedInk, height: 1.4),
+            const SizedBox(height: 4),
+            const Text(
+              'Worker heat safety guidance for your farm today',
+              style: TextStyle(fontSize: 14.5, color: RashkarColors.mutedInk),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // 3. MINIMUM INFO & PRIMARY ACTION TO UPDATE WORK
             RashkarCard(
@@ -1536,18 +1536,20 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
     String plainRiskLabel;
     IconData statusIcon;
     if (level == 'CRITICAL' || level == 'EXTREME' || level == 'HIGH') {
-      statusTitle = 'High heat stress forecast for ${c.cropCommonName}';
-      statusSub = 'Temperatures may stress the crop during the $stageLabel stage. Review the care steps below.';
+      statusTitle = 'High heat stress is forecast for ${c.cropCommonName} during the $stageLabel stage.';
+      statusSub = c.recommendedInterventions.isNotEmpty
+          ? c.recommendedInterventions.first.titleEn
+          : 'Provide protective irrigation during cooler morning or evening hours.';
       plainRiskLabel = 'HIGH HEAT';
       statusIcon = Icons.warning_amber_rounded;
     } else if (level == 'MODERATE') {
-      statusTitle = 'Mild heat for ${c.cropCommonName} — watch moisture';
-      statusSub = 'Afternoon heat may dry soil faster. Check field moisture and irrigate during cooler hours.';
+      statusTitle = 'Mild heat is forecast for ${c.cropCommonName} — afternoon heat may dry soil faster.';
+      statusSub = 'Check field moisture and irrigate during cooler morning or evening hours.';
       plainRiskLabel = 'MODERATE';
       statusIcon = Icons.water_drop_outlined;
     } else {
-      statusTitle = 'No heat stress forecast for ${c.cropCommonName}';
-      statusSub = 'Temperatures over the next 4 days are within normal limits for the $stageLabel stage.';
+      statusTitle = 'No heat-stress warning is forecast for ${c.cropCommonName} over the next 4 days at its confirmed $stageLabel stage.';
+      statusSub = 'Temperatures are within safe limits. Continue regular crop care and check soil moisture.';
       plainRiskLabel = 'SAFE';
       statusIcon = Icons.check_circle_outline;
     }
@@ -1563,22 +1565,22 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
               _buildFarmSwitcherHeader(),
               const SizedBox(height: 14),
             ],
-            // 1. ONE-SENTENCE CROP HEAT STATUS
-            Text(
-              statusTitle,
-              style: const TextStyle(
+            // 1. PAGE HEADING
+            const Text(
+              "Your Crop's Heat Outlook",
+              style: TextStyle(
                 fontSize: 23,
                 fontWeight: FontWeight.w800,
                 color: RashkarColors.ink,
                 height: 1.2,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
-              statusSub,
-              style: const TextStyle(fontSize: 15, color: RashkarColors.mutedInk, height: 1.4),
+              'Heat forecast and thermal safety for ${c.cropCommonName}',
+              style: const TextStyle(fontSize: 14.5, color: RashkarColors.mutedInk),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
             // 3. ACTIVE CROP BAR & STAGE CONFIRMATION
             _buildCropPlotSelectorBar(),
@@ -1675,6 +1677,11 @@ class _RiskHubScreenState extends State<RiskHubScreen> with SingleTickerProvider
                                   value: '${c.criticalTmaxThresholdC.toStringAsFixed(1)}°C',
                                 ),
                               ],
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Note: This assessment covers forecast heat risk and does not replace regular field scouting.',
+                              style: TextStyle(fontSize: 12.5, color: RashkarColors.mutedInk),
                             ),
                             if (c.warmNightRespirationHazard) ...[
                               const SizedBox(height: 12),

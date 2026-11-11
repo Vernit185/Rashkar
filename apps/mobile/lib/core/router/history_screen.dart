@@ -45,6 +45,12 @@ class _AssessmentHistoryScreenState extends State<AssessmentHistoryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const RashkarHeroBanner(
+                  eyebrow: 'SESSION RECORDS',
+                  title: 'Past Farm Checks',
+                  subtitle: 'Past soil, crop, and farm checks recorded during this session.',
+                ),
+                const SizedBox(height: 14),
                 ResponsiveGrid.metrics(
                   mobileColumns: 2,
                   tabletColumns: 4,
