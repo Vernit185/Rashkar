@@ -73,12 +73,12 @@ class AppDecorations {
   const AppDecorations._();
 
   // Agricultural Brand Palette Colors (AgriNova Palette)
-  static const Color primaryGreen = Color(0xFF287D49);
-  static const Color leafGreen = Color(0xFF287D49);
+  static const Color primaryGreen = Color(0xFF27804C);
+  static const Color leafGreen = Color(0xFF27804C);
   static const Color accentOrange = Color(0xFFD97706);
   static const Color soilBrown = Color(0xFF5D4037);
-  static const Color surfaceMuted = Color(0xFFF8FAF8);
-  static const Color borderLight = Color(0xFFDCE9DF);
+  static const Color surfaceMuted = Color(0xFFFAFAF5);
+  static const Color borderLight = Color(0xFFE2E8E0);
 
   /// Standard card decoration.
   static BoxDecoration card({

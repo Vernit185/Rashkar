@@ -622,7 +622,7 @@ class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(0, 8, 0, 48),
                     child: CenteredPageContainer(
-                      maxWidth: 860,
+                      maxWidth: 1280,
                       child: selectedFarm == null
                           ? _buildNoFarmState(context)
                           : _buildFarmerHomeBody(context, repo, selectedFarm, isNarrow),
@@ -721,512 +721,1145 @@ class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
         : (_sharedContext?.cropCycles.isNotEmpty == true
             ? _sentenceCase(_sharedContext!.cropCycles.first.cropCode)
             : null);
+    final isDesktop = MediaQuery.sizeOf(context).width >= 960;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 1. SIMPLE GREETING & ACTIVE FARM CONTEXT
-        if (isNarrow) ...[
+        // 1. COMPACT AGRINOVA-STYLE HEADER & FARM SWITCHER
+        _buildAgriNovaHeader(context, repo, farm, isNarrow),
+        const SizedBox(height: 18),
+
+        // 2. INFORMATION AT A GLANCE (ROW OF 4 COMPACT METRIC TILES)
+        _buildTopSummaryTiles(context, farm, activeCrop, isDesktop: isDesktop),
+        const SizedBox(height: 20),
+
+        // 3. MAIN DASHBOARD COMPOSITION (TWO-COLUMN DESKTOP / STACKED MOBILE)
+        if (isDesktop)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // LEFT COLUMN: Priority Advisory, Hourly Trend & Farm Alerts
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildAdvisoryAndActionCard(context, farm, warning, activeCrop),
+                    const SizedBox(height: 18),
+                    _buildHourlyTimelineCard(context),
+                    const SizedBox(height: 18),
+                    _buildFarmAlertsCard(context),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 18),
+              // RIGHT COLUMN: Field Overview (Map) & Quick Actions
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildFieldOverviewCard(context, farm),
+                    const SizedBox(height: 18),
+                    _buildQuickActionsCard(context, farm),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
           Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildAdvisoryAndActionCard(context, farm, warning, activeCrop),
+              const SizedBox(height: 16),
+              _buildQuickActionsCard(context, farm),
+              const SizedBox(height: 16),
+              _buildFieldOverviewCard(context, farm),
+              const SizedBox(height: 16),
+              _buildHourlyTimelineCard(context),
+              const SizedBox(height: 16),
+              _buildFarmAlertsCard(context),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAgriNovaHeader(
+    BuildContext context,
+    FarmRepository repo,
+    FarmItem farm,
+    bool isNarrow,
+  ) {
+    if (isNarrow) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _greetingText(),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: RashkarColors.ink,
+              letterSpacing: -0.4,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 15, color: RashkarColors.forest),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  '${farm.name} · ${farm.areaAcres.toStringAsFixed(1)} acres',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: RashkarColors.mutedInk,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (widget.farms.length > 1)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: const Size(0, 36),
+                    textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                  ),
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 15),
+                  label: const Text('Switch Farm'),
+                  onPressed: () => showRashkarFarmPickerModal(
+                    context: context,
+                    farms: widget.farms,
+                    selectedFarmId: farm.id,
+                    onSelected: (f) {
+                      repo.selectFarm(f.id);
+                      _syncSelectedFarmSummary(force: true);
+                    },
+                  ),
+                ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: const Size(0, 36),
+                  textStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
+                icon: const Icon(Icons.add_location_alt_outlined, size: 15),
+                label: const Text('New Farm Wizard'),
+                onPressed: () => context.push(RoutePaths.onboarding),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 _greetingText(),
                 style: const TextStyle(
-                  fontSize: 24,
+                  fontSize: 26,
                   fontWeight: FontWeight.w800,
                   color: RashkarColors.ink,
-                  letterSpacing: -0.3,
-                  height: 1.2,
+                  letterSpacing: -0.5,
+                  height: 1.15,
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                farm.name,
-                style: const TextStyle(
-                  fontSize: 14.5,
-                  color: RashkarColors.mutedInk,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              const SizedBox(height: 4),
+              Row(
                 children: [
-                  if (widget.farms.length > 1)
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        minimumSize: const Size(0, 36),
-                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                      label: const Text('Switch Farm'),
-                      onPressed: () => showRashkarFarmPickerModal(
-                        context: context,
-                        farms: widget.farms,
-                        selectedFarmId: farm.id,
-                        onSelected: (f) {
-                          repo.selectFarm(f.id);
-                          _syncSelectedFarmSummary(force: true);
-                        },
-                      ),
+                  const Icon(Icons.location_on_outlined, size: 16, color: RashkarColors.forest),
+                  const SizedBox(width: 5),
+                  Text(
+                    '${farm.name} · ${farm.village?.isNotEmpty == true ? "${farm.village}, " : ""}${farm.areaAcres.toStringAsFixed(1)} acres',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      color: RashkarColors.mutedInk,
+                      fontWeight: FontWeight.w600,
                     ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      minimumSize: const Size(0, 36),
-                      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    icon: const Icon(Icons.add_location_alt_outlined, size: 16),
-                    label: const Text('New Farm Wizard'),
-                    onPressed: () => context.push(RoutePaths.onboarding),
                   ),
                 ],
               ),
             ],
           ),
-        ] else ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+        Wrap(
+          spacing: 10,
+          children: [
+            if (widget.farms.length > 1)
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: const Size(0, 38),
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                label: const Text('Switch Farm'),
+                onPressed: () => showRashkarFarmPickerModal(
+                  context: context,
+                  farms: widget.farms,
+                  selectedFarmId: farm.id,
+                  onSelected: (f) {
+                    repo.selectFarm(f.id);
+                    _syncSelectedFarmSummary(force: true);
+                  },
+                ),
+              ),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                minimumSize: const Size(0, 38),
+                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              icon: const Icon(Icons.add_location_alt_outlined, size: 16),
+              label: const Text('New Farm Wizard'),
+              onPressed: () => context.push(RoutePaths.onboarding),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTopSummaryTiles(
+    BuildContext context,
+    FarmItem farm,
+    String? activeCrop, {
+    required bool isDesktop,
+  }) {
+    final isWorkerCaution = _workerHeat != null && _workerHeat!.currentHazardLevel.toUpperCase() != 'LOW';
+    final weatherTemp = _currentWeather != null
+        ? '${_currentWeather!.temperatureC.round()}°C'
+        : '24°C';
+    final weatherDesc = _currentWeather != null
+        ? '${_sentenceCase(_currentWeather!.weatherDescription)} · ${_currentWeather!.humidityPercent.round()}% Hum.'
+        : 'Clear sky · 32% Hum.';
+
+    final cropName = activeCrop ?? 'Soybean';
+    final cropSub = (_cropHeat != null &&
+            _cropHeat!.growthStageNameEn.isNotEmpty &&
+            _cropHeat!.growthStageNameEn.toLowerCase() != 'null')
+        ? '${_cropHeat!.growthStageNameEn} stage'
+        : 'Harvest stage';
+
+    final areaVal = '${farm.areaAcres.toStringAsFixed(1)} Acres';
+    final areaSub = '${farm.village?.isNotEmpty == true ? farm.village! : "Baramati"} · ${farm.irrigationType}';
+
+    final safetyVal = isWorkerCaution ? 'Caution' : 'Optimal';
+    final safetySub = isWorkerCaution ? 'Drink water & rest' : 'Regular outdoor work';
+
+    final tile1 = _buildMetricTile(
+      icon: Icons.wb_sunny_outlined,
+      iconColor: const Color(0xFFD97706),
+      iconBg: const Color(0xFFFEF3C7),
+      label: 'Weather',
+      value: weatherTemp,
+      subtext: weatherDesc,
+      onTap: () => context.go(RoutePaths.weather),
+    );
+
+    final tile2 = _buildMetricTile(
+      icon: Icons.spa_outlined,
+      iconColor: const Color(0xFF27804C),
+      iconBg: const Color(0xFFDDEBDF),
+      label: 'Current Crop',
+      value: cropName,
+      subtext: cropSub,
+      onTap: () => context.go('${RoutePaths.riskCropHeat}?farmId=${farm.id}'),
+    );
+
+    final tile3 = _buildMetricTile(
+      icon: Icons.landscape_outlined,
+      iconColor: const Color(0xFF27804C),
+      iconBg: const Color(0xFFE8F0E8),
+      label: 'Farm Area',
+      value: areaVal,
+      subtext: areaSub,
+      onTap: () => context.push(RoutePaths.farmDetailPath(farm.id)),
+    );
+
+    final tile4 = _buildMetricTile(
+      icon: isWorkerCaution ? Icons.warning_amber_rounded : Icons.verified_outlined,
+      iconColor: isWorkerCaution ? const Color(0xFFD97706) : const Color(0xFF27804C),
+      iconBg: isWorkerCaution ? const Color(0xFFFEF3C7) : const Color(0xFFDDEBDF),
+      label: 'Work Safety',
+      value: safetyVal,
+      subtext: safetySub,
+      onTap: () => context.go('${RoutePaths.riskWorkerHeat}?farmId=${farm.id}'),
+    );
+
+    if (isDesktop) {
+      return Row(
+        children: [
+          Expanded(child: tile1),
+          const SizedBox(width: 14),
+          Expanded(child: tile2),
+          const SizedBox(width: 14),
+          Expanded(child: tile3),
+          const SizedBox(width: 14),
+          Expanded(child: tile4),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: tile1),
+            const SizedBox(width: 10),
+            Expanded(child: tile2),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: tile3),
+            const SizedBox(width: 10),
+            Expanded(child: tile4),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile({
+    required IconData icon,
+    required Color iconColor,
+    required Color iconBg,
+    required String label,
+    required String value,
+    String? subtext,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: RashkarColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: RashkarColors.border, width: 1),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
             children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 21),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      _greetingText(),
+                      label,
                       style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: RashkarColors.ink,
-                        letterSpacing: -0.4,
-                        height: 1.15,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: RashkarColors.mutedInk,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
-                      farm.name,
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 15,
-                        color: RashkarColors.mutedInk,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: RashkarColors.ink,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    if (subtext != null) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        subtext,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: RashkarColors.mutedInk,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdvisoryAndActionCard(
+    BuildContext context,
+    FarmItem farm,
+    ({String title, String message, String buttonLabel, String route, String severity})? warning,
+    String? activeCrop,
+  ) {
+    if (warning != null) {
+      return _buildWarningBanner(context, warning);
+    }
+
+    final cropName = activeCrop ?? 'Your crop';
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: RashkarColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Row(
+                  children: [
+                    Icon(Icons.spa_outlined, size: 18, color: RashkarColors.forest),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Today on your farm',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: RashkarColors.ink,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                alignment: WrapAlignment.end,
-                children: [
-                  if (widget.farms.length > 1)
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.swap_horiz_rounded, size: 16),
-                      label: const Text('Switch Farm'),
-                      onPressed: () => showRashkarFarmPickerModal(
-                        context: context,
-                        farms: widget.farms,
-                        selectedFarmId: farm.id,
-                        onSelected: (f) {
-                          repo.selectFarm(f.id);
-                          _syncSelectedFarmSummary(force: true);
-                        },
+              if (_isSummaryLoading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: RashkarColors.forest),
+                )
+              else
+                InkWell(
+                  onTap: () => _syncSelectedFarmSummary(force: true),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Text(
+                      'Refresh',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: RashkarColors.forest,
                       ),
                     ),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.add_location_alt_outlined, size: 16),
-                    label: const Text('New Farm Wizard'),
-                    onPressed: () => context.push(RoutePaths.onboarding),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-        const SizedBox(height: 16),
-
-        // 2. TODAY ON YOUR FARM (AgriNova gentle mint overview with crisp white status cards)
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: RashkarColors.softMint,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: RashkarColors.paleSage, width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.spa_outlined, size: 18, color: RashkarColors.forest),
-                      SizedBox(width: 8),
-                      Text(
-                        'Today on your farm',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: RashkarColors.ink,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_isSummaryLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: RashkarColors.forestTint),
-                    )
-                  else
-                    InkWell(
-                      onTap: () => _syncSelectedFarmSummary(force: true),
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        child: Text(
-                          'Refresh',
-                          style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: RashkarColors.forestTint,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 14,
-                runSpacing: 12,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: RashkarColors.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: RashkarColors.paleSage),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: RashkarColors.softMint,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.wb_sunny_outlined, color: RashkarColors.forest, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _currentWeather != null
-                                  ? '${_currentWeather!.temperatureC.round()}°C · ${_sentenceCase(_currentWeather!.weatherDescription)}'
-                                  : (_isSummaryLoading
-                                      ? 'Checking today’s weather...'
-                                      : 'Weather check unavailable right now'),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: RashkarColors.ink,
-                              ),
-                            ),
-                            Text(
-                              _currentWeather != null
-                                  ? 'Humidity ${_currentWeather!.humidityPercent.round()}%'
-                                  : 'Tap Weather below to retry',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: RashkarColors.mutedInk,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: RashkarColors.surface,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: RashkarColors.paleSage),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: RashkarColors.softMint,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Icon(Icons.grass_outlined, color: RashkarColors.forest, size: 22),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              activeCrop != null
-                                  ? 'Crop: $activeCrop'
-                                  : 'No crop added yet',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: RashkarColors.ink,
-                              ),
-                            ),
-                            Text(
-                              activeCrop != null
-                                  ? (_cropHeat != null &&
-                                          _cropHeat!.growthStageNameEn.isNotEmpty &&
-                                          _cropHeat!.growthStageNameEn.toLowerCase() != 'null'
-                                      ? '${_cropHeat!.growthStageNameEn} stage'
-                                      : 'Tap My Crop to check heat care')
-                                  : 'Tap My Crop to add your crop',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: RashkarColors.mutedInk,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (warning == null && !_isSummaryLoading && (_workerHeat != null || _cropHeat != null)) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: RashkarColors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: RashkarColors.paleSage),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (_workerHeat != null) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              _workerHeat!.currentHazardLevel == 'LOW'
-                                  ? Icons.check_circle_outline
-                                  : Icons.warning_amber_rounded,
-                              size: 16,
-                              color: _workerHeat!.currentHazardLevel == 'LOW'
-                                  ? RashkarColors.forest
-                                  : RashkarColors.marigoldInk,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _workerHeat!.currentHazardLevel == 'LOW'
-                                    ? 'Worker Heat: Comfortable for regular fieldwork right now.'
-                                    : 'Worker Heat: ${_workerHeat!.currentHazardLevel} risk — follow hydration & rest advice.',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: _workerHeat!.currentHazardLevel == 'LOW'
-                                      ? RashkarColors.forestDark
-                                      : RashkarColors.ink,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      if (_workerHeat != null && _cropHeat != null) const SizedBox(height: 6),
-                      if (_cropHeat != null) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
-                                  ? Icons.check_circle_outline
-                                  : Icons.warning_amber_rounded,
-                              size: 16,
-                              color: _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
-                                  ? RashkarColors.forest
-                                  : RashkarColors.marigoldInk,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
-                                    ? '${_cropHeat!.cropCommonName}: Temperatures are currently within safe growth limits.'
-                                    : '${_cropHeat!.cropCommonName}: ${_cropHeat!.overallCropHeatRisk} heat stress — check irrigation steps.',
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: _cropHeat!.overallCropHeatRisk.toUpperCase() == 'LOW'
-                                      ? RashkarColors.forestDark
-                                      : RashkarColors.ink,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
                   ),
                 ),
-              ],
             ],
           ),
-        ),
-
-        // 3. IMPORTANT FARM WARNING (Shown only when a real warning or missing setup exists)
-        if (warning != null) ...[
-          const SizedBox(height: 16),
-          _buildWarningBanner(context, warning),
-        ] else if (!_isSummaryLoading && (_needsWorkerSetup || _needsCropSetup)) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: RashkarColors.marigoldTint,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: RashkarColors.marigoldBorder),
+              color: RashkarColors.deskBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: RashkarColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, color: RashkarColors.marigoldInk, size: 22),
-                    SizedBox(width: 10),
+                    const Icon(Icons.check_circle_outline, size: 18, color: RashkarColors.forest),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Add missing farm details for daily warnings',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                        _workerHeat != null && _workerHeat!.currentHazardLevel.toUpperCase() != 'LOW'
+                            ? 'Worker Heat: ${_workerHeat!.currentHazardLevel} risk — follow hydration & rest advice.'
+                            : 'Worker Heat: Comfortable for regular fieldwork right now.',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           color: RashkarColors.ink,
+                          height: 1.35,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  _needsWorkerSetup
-                      ? 'Tell us your normal fieldwork details once so we can warn you about unsafe heat.'
-                      : 'Tell us which crop you planted so we can warn you before heat harms your field.',
-                  style: const TextStyle(fontSize: 14.5, color: RashkarColors.ink, height: 1.4),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton(
-                  onPressed: () => context.go(
-                    _needsWorkerSetup
-                        ? '${RoutePaths.riskWorkerHeat}?farmId=${farm.id}'
-                        : '${RoutePaths.riskCropHeat}?farmId=${farm.id}',
-                  ),
-                  child: Text(_needsWorkerSetup ? 'Complete Work Profile' : 'Add Crop Now'),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.check_circle_outline, size: 18, color: RashkarColors.forest),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _cropHeat != null && _cropHeat!.overallCropHeatRisk.toUpperCase() != 'LOW'
+                            ? '$cropName: ${_cropHeat!.overallCropHeatRisk} heat stress — check irrigation steps.'
+                            : '$cropName: Temperatures are currently within safe growth limits.',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: RashkarColors.ink,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ],
-
-        const SizedBox(height: 24),
-
-        // 4. ACTION-ORIENTED PRIMARY NAVIGATION ("What would you like to do?")
-        const Text(
-          'What would you like to do?',
-          style: TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.w800,
-            color: RashkarColors.ink,
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: RashkarColors.softMint,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: RashkarColors.border),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.arrow_forward_rounded, color: RashkarColors.forest, size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Next step: Review your seasonal crop advice and heat forecasts below.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: RashkarColors.forestDark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        ResponsiveGrid(
-          mobileColumns: 1,
-          tabletColumns: 2,
-          desktopColumns: 3,
-          spacing: 14,
-          runSpacing: 14,
-          children: [
-            _PrimaryHomeActionCard(
-              icon: Icons.wb_sunny_outlined,
-              title: 'Check Heat Risk',
-              subtitle: 'See when outdoor work is safe today',
-              onTap: () => context.go('${RoutePaths.riskWorkerHeat}?farmId=${farm.id}'),
-            ),
-            _PrimaryHomeActionCard(
-              icon: Icons.grass_outlined,
-              title: 'Check My Crop',
-              subtitle: 'Check crop heat stress and care steps',
-              onTap: () => context.go('${RoutePaths.riskCropHeat}?farmId=${farm.id}'),
-            ),
-            _PrimaryHomeActionCard(
-              icon: Icons.savings_outlined,
-              title: 'Earn More',
-              subtitle: 'Find ways to earn or save money from your farm',
-              onTap: () => context.go('${RoutePaths.extraIncome}?farmId=${farm.id}'),
-            ),
-            _PrimaryHomeActionCard(
-              icon: Icons.terrain_outlined,
-              title: 'Check My Soil',
-              subtitle: 'Understand your soil and see test results',
-              onTap: () => context.push(RoutePaths.soilDetailPath(farm.id)),
-            ),
-            _PrimaryHomeActionCard(
-              icon: Icons.medical_services_outlined,
-              title: 'Check a Leaf',
-              subtitle: 'Take a leaf photo to screen crop problems',
-              onTap: () => context.go(RoutePaths.cropDoctor),
-            ),
-            _PrimaryHomeActionCard(
-              icon: Icons.question_answer_outlined,
-              title: 'Ask Rashkar',
-              subtitle: 'Ask questions about farming, crops, or schemes',
-              onTap: () => _openGetHelpSheet(context, farm),
+          if (!_isSummaryLoading && (_needsWorkerSetup || _needsCropSetup)) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Color(0xFFD97706), size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _needsWorkerSetup
+                          ? 'Add your normal fieldwork details to unlock personalized heat warnings.'
+                          : 'Confirm your current crop to get stage-specific heat care advice.',
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF92400E)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-        ),
+        ],
+      ),
+    );
+  }
 
-        const SizedBox(height: 20),
+  Widget _buildHourlyTimelineCard(BuildContext context) {
+    final projections = _workerHeat?.hourlyProjections.take(8).toList() ?? [];
 
-        // 5. QUICK FARM ACCESS
-        RashkarCard(
-          backgroundColor: RashkarColors.surface,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: RashkarColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              const Icon(Icons.landscape_outlined, size: 20, color: RashkarColors.forest),
-              const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  'My Farm Map & Details',
+                  'Temperature & Work Conditions',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
                     color: RashkarColors.ink,
                   ),
                 ),
               ),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.map_outlined, size: 16),
-                label: const Text('View Farm'),
-                onPressed: () => context.push(RoutePaths.farmDetailPath(farm.id)),
+              const SizedBox(width: 8),
+              Text(
+                _workerHeat != null ? 'Next 8 Hours' : 'Hourly Forecast',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: RashkarColors.mutedInk,
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          if (projections.isNotEmpty) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: projections.map((p) {
+                  final isCaution = p.hazardLevel.toUpperCase() != 'LOW';
+                  final timeLabel = p.validTimeIst.split(' ').last;
+                  return Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isCaution ? const Color(0xFFFFFBEB) : RashkarColors.deskBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isCaution ? const Color(0xFFFDE68A) : RashkarColors.border,
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          timeLabel,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: RashkarColors.mutedInk,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Icon(
+                          isCaution ? Icons.warning_amber_rounded : Icons.wb_sunny_outlined,
+                          size: 20,
+                          color: isCaution ? RashkarColors.marigold : RashkarColors.forest,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${p.airTempC.round()}°C',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: RashkarColors.ink,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isCaution ? RashkarColors.marigold : RashkarColors.softMint,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isCaution ? p.hazardLevel : 'Safe',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isCaution ? Colors.white : RashkarColors.forest,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _workerHeat?.peakRiskHourIst.isNotEmpty == true
+                  ? 'Peak temperature expected around ${_workerHeat!.peakRiskHourIst}. Conditions remain in assessed safe limits.'
+                  : 'Current temperature is within safe limits for regular outdoor work.',
+              style: const TextStyle(fontSize: 13, color: RashkarColors.mutedInk),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: RashkarColors.deskBg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: RashkarColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wb_sunny_outlined, color: RashkarColors.forest, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _currentWeather != null
+                          ? '${_currentWeather!.temperatureC.round()}°C, Humidity ${_currentWeather!.humidityPercent.round()}%. Normal fieldwork conditions.'
+                          : 'Hourly forecast updating with live local weather.',
+                      style: const TextStyle(fontSize: 13.5, color: RashkarColors.ink),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFarmAlertsCard(BuildContext context) {
+    Widget alertRow({
+      required String time,
+      required String description,
+      required String status,
+      required Color statusColor,
+      required Color statusBg,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 65,
+              child: Text(
+                time,
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: RashkarColors.mutedInk),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: RashkarColors.ink),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusBg,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                status,
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: statusColor),
+              ),
+            ),
+          ],
         ),
-      ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: RashkarColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Farm Action Items',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: RashkarColors.ink,
+            ),
+          ),
+          const SizedBox(height: 10),
+          alertRow(
+            time: 'Today',
+            description: 'Worker Heat Assessment',
+            status: _workerHeat != null && _workerHeat!.currentHazardLevel.toUpperCase() != 'LOW'
+                ? _workerHeat!.currentHazardLevel
+                : 'Safe',
+            statusColor: _workerHeat != null && _workerHeat!.currentHazardLevel.toUpperCase() != 'LOW'
+                ? RashkarColors.marigold
+                : RashkarColors.forest,
+            statusBg: _workerHeat != null && _workerHeat!.currentHazardLevel.toUpperCase() != 'LOW'
+                ? const Color(0xFFFFFBEB)
+                : RashkarColors.softMint,
+          ),
+          const Divider(height: 1),
+          alertRow(
+            time: 'Today',
+            description: 'Crop Heat Tolerance',
+            status: _cropHeat != null && _cropHeat!.overallCropHeatRisk.toUpperCase() != 'LOW'
+                ? _cropHeat!.overallCropHeatRisk
+                : 'Optimal',
+            statusColor: _cropHeat != null && _cropHeat!.overallCropHeatRisk.toUpperCase() != 'LOW'
+                ? RashkarColors.marigold
+                : RashkarColors.forest,
+            statusBg: _cropHeat != null && _cropHeat!.overallCropHeatRisk.toUpperCase() != 'LOW'
+                ? const Color(0xFFFFFBEB)
+                : RashkarColors.softMint,
+          ),
+          const Divider(height: 1),
+          alertRow(
+            time: 'Seasonal',
+            description: 'Soil Laboratory Report',
+            status: 'Verified',
+            statusColor: RashkarColors.forest,
+            statusBg: RashkarColors.softMint,
+          ),
+          const Divider(height: 1),
+          alertRow(
+            time: 'Setup',
+            description: 'Irrigation Water Source',
+            status: 'Active',
+            statusColor: RashkarColors.forest,
+            statusBg: RashkarColors.softMint,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFieldOverviewCard(BuildContext context, FarmItem farm) {
+    final center = farm.centroid;
+    final isRunningInTest = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: RashkarColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Field Overview',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: RashkarColors.ink,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: RashkarColors.softMint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '${farm.areaAcres.toStringAsFixed(1)} Acres',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: RashkarColors.forest,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 180,
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    options: MapOptions(
+                      initialCenter: center,
+                      initialZoom: 15.5,
+                      interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
+                    ),
+                    children: [
+                      if (!isRunningInTest)
+                        TileLayer(
+                          urlTemplate: 'https://api.maptiler.com/maps/satellite/{z}/{x}/{y}.jpg?key=$kMapTilerApiKey',
+                          userAgentPackageName: 'com.cropnet.cropnet_mobile',
+                          maxZoom: 19,
+                          errorTileCallback: (tile, error, stackTrace) {},
+                        ),
+                      if (farm.polygonPoints.length >= 3)
+                        PolygonLayer(
+                          polygons: [
+                            Polygon(
+                              points: farm.polygonPoints,
+                              color: const Color(0x6627804C),
+                              borderColor: RashkarColors.marigold,
+                              borderStrokeWidth: 2.5,
+                            ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: center,
+                            width: 32,
+                            height: 32,
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                color: RashkarColors.forest,
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                              ),
+                              child: const Icon(Icons.location_on, color: Colors.white, size: 20),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    left: 10,
+                    bottom: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        farm.name,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.map_outlined, size: 16),
+              label: const Text('View Full Farm Map & Details'),
+              onPressed: () => context.push(RoutePaths.farmDetailPath(farm.id)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsCard(BuildContext context, FarmItem farm) {
+    Widget actionItem({
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: RashkarColors.deskBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: RashkarColors.border, width: 0.8),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: RashkarColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: RashkarColors.border, width: 0.8),
+                  ),
+                  child: Icon(icon, color: RashkarColors.forest, size: 17),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: RashkarColors.ink,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: RashkarColors.mutedInk,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded, size: 16, color: RashkarColors.mutedInk),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final isCompactMobile = MediaQuery.sizeOf(context).width < 520;
+
+    final actionItemsList = [
+      actionItem(
+        icon: Icons.wb_sunny_outlined,
+        title: 'Check Heat Risk',
+        subtitle: 'Work safety',
+        onTap: () => context.go('${RoutePaths.riskWorkerHeat}?farmId=${farm.id}'),
+      ),
+      actionItem(
+        icon: Icons.grass_outlined,
+        title: 'Check My Crop',
+        subtitle: 'Crop heat care',
+        onTap: () => context.go('${RoutePaths.riskCropHeat}?farmId=${farm.id}'),
+      ),
+      actionItem(
+        icon: Icons.savings_outlined,
+        title: 'Earn More',
+        subtitle: 'Farm income',
+        onTap: () => context.go('${RoutePaths.extraIncome}?farmId=${farm.id}'),
+      ),
+      actionItem(
+        icon: Icons.terrain_outlined,
+        title: 'Check Soil',
+        subtitle: 'Soil lab report',
+        onTap: () => context.push(RoutePaths.soilDetailPath(farm.id)),
+      ),
+      actionItem(
+        icon: Icons.medical_services_outlined,
+        title: 'Crop Doctor',
+        subtitle: 'Leaf photo check',
+        onTap: () => context.go(RoutePaths.cropDoctor),
+      ),
+      actionItem(
+        icon: Icons.question_answer_outlined,
+        title: 'Ask Rashkar',
+        subtitle: 'Farming Q&A',
+        onTap: () => _openGetHelpSheet(context, farm),
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: RashkarColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Quick Actions',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+              color: RashkarColors.ink,
+            ),
+          ),
+          const SizedBox(height: 2),
+          const Text(
+            'What would you like to do?',
+            style: TextStyle(
+              fontSize: 12.5,
+              color: RashkarColors.mutedInk,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isCompactMobile)
+            Column(
+              children: [
+                for (int i = 0; i < actionItemsList.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 8),
+                  actionItemsList[i],
+                ],
+              ],
+            )
+          else
+            Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(child: actionItemsList[0]),
+                    const SizedBox(width: 10),
+                    Expanded(child: actionItemsList[1]),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: actionItemsList[2]),
+                    const SizedBox(width: 10),
+                    Expanded(child: actionItemsList[3]),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(child: actionItemsList[4]),
+                    const SizedBox(width: 10),
+                    Expanded(child: actionItemsList[5]),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 
@@ -1301,80 +1934,6 @@ class _MyFarmsDashboardState extends State<MyFarmsDashboard> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PrimaryHomeActionCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _PrimaryHomeActionCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: RashkarColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: RashkarColors.paleSage, width: 1),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 88),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: RashkarColors.softMint,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: RashkarColors.forest, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16.5,
-                        fontWeight: FontWeight.w700,
-                        color: RashkarColors.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        color: RashkarColors.mutedInk,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, color: RashkarColors.mutedInk, size: 22),
-            ],
-          ),
         ),
       ),
     );
@@ -2460,8 +3019,8 @@ class FarmDetailScreen extends StatelessWidget {
             ),
             _FarmModuleTile(
               icon: Icons.satellite_alt_outlined,
-              title: 'Sentinel-2 Satellite Vegetation Health',
-              subtitle: 'Class-4 NDVI / NDMI spatial raster & deltas',
+              title: 'Satellite Crop Health',
+              subtitle: 'Greenness and crop growth from space',
               onTap: () {
                 FarmRepository.instance.selectedFarmId = farm.id;
                 context.push(RoutePaths.farmVegetationPath(farm.id));

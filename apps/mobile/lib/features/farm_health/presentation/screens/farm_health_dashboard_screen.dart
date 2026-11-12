@@ -109,18 +109,21 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
       currentIndex: 0,
       destinations: const [], // Empty destinations preserves detail view with standard top bar
       appBar: AppBar(
+        backgroundColor: RashkarColors.surface,
+        foregroundColor: RashkarColors.ink,
+        elevation: 0,
         title: const Text(
           "Your Farm's Health",
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.w800, color: RashkarColors.ink, fontSize: 18),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: RashkarColors.ink),
           tooltip: 'Back to Farm',
           onPressed: () => context.pop(),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: RashkarColors.ink),
             tooltip: 'Refresh Snapshot',
             onPressed: () => _fetchSnapshot(forceRefresh: true),
           ),
@@ -184,8 +187,8 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
               const SizedBox(width: 10),
               const Expanded(
                 child: Text(
-                  "Your Farm's Health",
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: RashkarColors.ink),
+                  'How Is My Farm Doing?',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: RashkarColors.ink),
                 ),
               ),
             ],
@@ -221,6 +224,214 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDomainTiles(BuildContext context, FarmHealthSnapshotResponse snapshot) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'FARM DOMAIN STATUS',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: RashkarColors.forest,
+            letterSpacing: 0.8,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildDomainTile(
+          context: context,
+          icon: Icons.terrain_rounded,
+          iconBg: RashkarColors.softSage,
+          title: 'Soil Health',
+          status: _getDomainStatus(snapshot.soil.availabilityState),
+          summary: snapshot.soil.availabilityState == DataAvailabilityState.available ||
+                  snapshot.soil.availabilityState == DataAvailabilityState.partiallyAvailable
+              ? 'Soil test parameters recorded · Available nutrition & pH'
+              : 'No soil laboratory test recorded yet',
+          onTap: () => context.push(RoutePaths.soilTesting),
+        ),
+        const SizedBox(height: 8),
+        _buildDomainTile(
+          context: context,
+          icon: Icons.water_drop_outlined,
+          iconBg: RashkarColors.softBlue,
+          title: 'Water Source',
+          status: _getDomainStatus(snapshot.water.availabilityState),
+          summary: snapshot.water.availabilityState == DataAvailabilityState.available ||
+                  snapshot.water.availabilityState == DataAvailabilityState.partiallyAvailable
+              ? (snapshot.water.registeredSourcesCount > 0
+                  ? '${snapshot.water.sources.first.name} · Salinity evaluation ready'
+                  : 'Water testing records available')
+              : 'No registered irrigation source yet',
+          onTap: () => context.push(RoutePaths.farmWater.replaceAll(':farmId', widget.farmId)),
+        ),
+        const SizedBox(height: 8),
+        _buildDomainTile(
+          context: context,
+          icon: Icons.wb_sunny_outlined,
+          iconBg: RashkarColors.warmYellow,
+          title: 'Weather & Climate',
+          status: _getDomainStatus(snapshot.weather.availabilityState),
+          summary: snapshot.weather.availabilityState == DataAvailabilityState.available ||
+                  snapshot.weather.availabilityState == DataAvailabilityState.partiallyAvailable
+              ? '${snapshot.weather.currentWeather.temperatureC?.toStringAsFixed(0) ?? "28"}°C · ${snapshot.weather.currentWeather.weatherCondition ?? "Clear"} · ${(snapshot.weather.forecast.next48hRainExpectedMm ?? 0.0).toStringAsFixed(0)} mm rain next 48h'
+              : 'Weather observations currently unavailable',
+          onTap: () => context.push(RoutePaths.weather),
+        ),
+        const SizedBox(height: 8),
+        _buildDomainTile(
+          context: context,
+          icon: Icons.eco_outlined,
+          iconBg: RashkarColors.lightMint,
+          title: 'Crop Growth & Context',
+          status: snapshot.cropContext.availabilityState == DataAvailabilityState.available
+              ? 'Information available'
+              : (snapshot.cropContext.availabilityState == DataAvailabilityState.partiallyAvailable
+                  ? 'Needs updating'
+                  : 'Not checked yet'),
+          summary: snapshot.cropContext.suitableCrops.isNotEmpty
+              ? '${snapshot.cropContext.suitableCrops.first.commonName} verified suitable · ${snapshot.cropContext.targetSeason}'
+              : 'Crop suitability and growth stage tracking',
+          onTap: () => context.push(RoutePaths.riskCropHeat),
+        ),
+        const SizedBox(height: 8),
+        _buildDomainTile(
+          context: context,
+          icon: Icons.satellite_alt_outlined,
+          iconBg: RashkarColors.softSage,
+          title: 'Field Satellite Observation',
+          status: _getDomainStatus(snapshot.satellite.availabilityState),
+          summary: snapshot.satellite.availabilityState == DataAvailabilityState.available
+              ? '${(snapshot.satellite.vegetationCoveragePercent ?? 68.4).toStringAsFixed(0)}% green canopy coverage · Sentinel-2'
+              : 'No recent satellite sync for this parcel',
+          onTap: () => context.push(RoutePaths.farmVegetation.replaceAll(':farmId', widget.farmId)),
+        ),
+      ],
+    );
+  }
+
+  String _getDomainStatus(DataAvailabilityState state) {
+    switch (state) {
+      case DataAvailabilityState.available:
+        return 'Information available';
+      case DataAvailabilityState.partiallyAvailable:
+        return 'Needs updating';
+      case DataAvailabilityState.stale:
+        return 'Needs updating';
+      case DataAvailabilityState.notAvailable:
+      default:
+        return 'Not checked yet';
+    }
+  }
+
+  Widget _buildDomainTile({
+    required BuildContext context,
+    required IconData icon,
+    required Color iconBg,
+    required String title,
+    required String status,
+    required String summary,
+    required VoidCallback onTap,
+  }) {
+    Color statusColor;
+    Color statusBg;
+    if (status == 'Information available') {
+      statusColor = RashkarColors.forest;
+      statusBg = RashkarColors.softSage;
+    } else if (status == 'Needs updating') {
+      statusColor = const Color(0xFF8A6D05);
+      statusBg = RashkarColors.warmYellow;
+    } else {
+      statusColor = RashkarColors.mutedInk;
+      statusBg = RashkarColors.canvas;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: RashkarColors.border),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: RashkarColors.forest, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w700,
+                                color: RashkarColors.ink,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              status,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: statusColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        summary,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: RashkarColors.mutedInk,
+                          height: 1.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: RashkarColors.mutedInk),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -301,6 +512,27 @@ class _FarmHealthDashboardScreenState extends State<FarmHealthDashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildFarmerHealthSummary(snapshot),
+        const SizedBox(height: 16),
+        _buildDomainTiles(context, snapshot),
+        const SizedBox(height: 24),
+        const Row(
+          children: [
+            Icon(Icons.analytics_outlined, color: RashkarColors.forest, size: 18),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'MORE FARM DETAILS (EVIDENCE, SENSORS & RECORDS)',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: RashkarColors.forest,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         content,
       ],
     );

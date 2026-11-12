@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// CropNet AI — Backend API Endpoints & Configuration Constants
 ///
 /// Verified against FastAPI backend at `services/api/app/main.py` and `app/api/v1/router.py`.
@@ -6,11 +8,19 @@ class ApiConstants {
 
   /// Default API base URL.
   /// Configurable at compile-time via `--dart-define=API_BASE_URL=...`
-  /// or at runtime via [ApiClient] constructor.
-  static const String defaultBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:8000',
-  );
+  /// or dynamically resolved from the hosting origin in web environments.
+  static String get defaultBaseUrl {
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) {
+      return envUrl;
+    }
+    // In web environments, if opened via LAN IP (e.g. from mobile phone at http://192.168.1.X:8080),
+    // target the host on port 8000.
+    if (kIsWeb && Uri.base.host.isNotEmpty && Uri.base.host != 'localhost' && Uri.base.host != '127.0.0.1') {
+      return '${Uri.base.scheme}://${Uri.base.host}:8000';
+    }
+    return 'http://localhost:8000';
+  }
 
   /// API V1 prefix
   static const String apiV1Prefix = '/api/v1';

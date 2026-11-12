@@ -572,21 +572,21 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
     return Scaffold(
       backgroundColor: RashkarColors.canvas,
       appBar: AppBar(
-        backgroundColor: RashkarColors.forest,
-        foregroundColor: Colors.white,
+        backgroundColor: RashkarColors.surface,
+        foregroundColor: RashkarColors.ink,
         elevation: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Earn More',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: RashkarColors.ink),
             ),
             Text(
               _sharedContext != null
-                  ? '${_sharedContext!.farmName} · Extra Income & Diversification'
-                  : 'Extra Income & Diversification · Find ways to earn or save money',
-              style: const TextStyle(fontSize: 11.5, color: RashkarColors.forestTextMuted),
+                  ? '${_sharedContext!.farmName} · Ideas to earn or save money'
+                  : 'Ideas to earn or save money from your farm',
+              style: const TextStyle(fontSize: 11.5, color: RashkarColors.mutedInk),
             ),
           ],
         ),
@@ -737,8 +737,6 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
               const SizedBox(height: 16),
             ] else ...[
               _buildOverviewCard(),
-              const SizedBox(height: 16),
-              _buildCategoryFilterBar(),
               const SizedBox(height: 16),
               if (isWide && _selectedOpportunity != null && _scenario != null)
                 Row(
@@ -993,43 +991,84 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
 
   // ==================== 1. FARM RESOURCE OVERVIEW CARD ====================
   Widget _buildOverviewCard() {
-    return RashkarHeroBanner(
-      eyebrow: 'FARMER OPPORTUNITIES',
-      title: 'Earn More',
-      subtitle: 'Find ways to earn or save money from your farm.',
-      footerChildren: [
-        _IncomeHeroPill(Icons.account_balance_wallet_outlined, 'Available Budget',
-            _availableInvestment == 0 ? '₹0 (Zero Cash)' : _formatCurrency(_availableInvestment)),
-        _IncomeHeroPill(Icons.landscape_outlined, 'Spare Land', '${_availableLand.toStringAsFixed(1)} ac'),
-        _IncomeHeroPill(Icons.water_drop_outlined, 'Water', _getWaterLabel(_waterAvailability)),
-        _IncomeHeroPill(Icons.people_outline, 'Family Labor', '${_familyLaborHours.toStringAsFixed(1)} h/day'),
-        ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: RashkarColors.forest,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            minimumSize: const Size(0, 36),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 6),
+        const Text(
+          'Ways to Earn More',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: RashkarColors.ink,
+            letterSpacing: -0.3,
           ),
-          icon: const Icon(Icons.tune_rounded, size: 16),
-          label: const Text('Change Farm Resources'),
-          onPressed: () => _showResourceSettingsBottomSheet(context),
         ),
+        const SizedBox(height: 4),
+        const Text(
+          'Ideas that may help you earn or save money from your farm.',
+          style: TextStyle(
+            fontSize: 13.5,
+            color: RashkarColors.mutedInk,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildFarmResourceSummaryRow(),
       ],
     );
   }
 
-  String _getWaterLabel(String code) {
-    switch (code) {
-      case 'reliable_year_round':
-        return 'Perennial';
-      case 'seasonal_canal':
-        return 'Seasonal';
-      case 'rainfed_limited':
-      case 'rainfed_only':
-        return 'Rainfed';
-      default:
-        return 'Seasonal';
-    }
+  Widget _buildFarmResourceSummaryRow() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: RashkarColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: RashkarColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(
+              color: RashkarColors.softSage,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.account_balance_wallet_outlined, color: RashkarColors.forest, size: 17),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Your Farm Resources',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: RashkarColors.mutedInk),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${_availableInvestment == 0 ? "₹0 cash" : _formatCurrency(_availableInvestment)} · ${_availableLand.toStringAsFixed(1)} ac spare · ${_familyLaborHours.toStringAsFixed(1)} h/day labor',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: RashkarColors.ink),
+                ),
+              ],
+            ),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: RashkarColors.forest,
+              side: const BorderSide(color: RashkarColors.borderStrong),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              minimumSize: const Size(0, 30),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => _showResourceSettingsBottomSheet(context),
+            child: const Text('Edit', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ==================== 2. CATEGORY FILTER BAR ====================
@@ -1137,8 +1176,8 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
             Expanded(
               child: Text(
                 _showAllOpportunities
-                    ? 'ALL ${list.length} FEASIBLE POSSIBILITIES'
-                    : 'TOP ${displayedList.length} FEASIBLE POSSIBILITIES',
+                    ? 'ALL ${list.length} POSSIBILITIES'
+                    : 'TOP ${displayedList.length} POSSIBILITIES FOR YOUR FARM',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -1154,21 +1193,32 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
             ),
           ],
         ),
+        if (_showAllOpportunities) ...[
+          const SizedBox(height: 10),
+          _buildCategoryFilterBar(),
+          const SizedBox(height: 10),
+        ],
         const SizedBox(height: 8),
         ...displayedList.map(_buildOpportunityCard),
         if (list.length > 3) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Center(
             child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: RashkarColors.forest,
+                side: const BorderSide(color: RashkarColors.borderStrong),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
               icon: Icon(
-                _showAllOpportunities ? Icons.expand_less : Icons.expand_more,
+                _showAllOpportunities ? Icons.expand_less : Icons.explore_outlined,
                 size: 18,
               ),
               label: Text(
                 _showAllOpportunities
                     ? 'Show Top 3 Opportunities Only'
-                    : 'View All Remaining Opportunities (${list.length - 3} More)',
-                style: const TextStyle(fontWeight: FontWeight.w700),
+                    : 'Explore All Ideas (${list.length} Options)',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
               ),
               onPressed: () => setState(() => _showAllOpportunities = !_showAllOpportunities),
             ),
@@ -1327,27 +1377,40 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
           Row(
             children: [
               Expanded(
+                flex: 6,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: isSelected ? RashkarColors.forest : RashkarColors.softMint,
-                    foregroundColor: isSelected ? Colors.white : RashkarColors.forest,
+                    backgroundColor: RashkarColors.forest,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () => _showFarmerQaBottomSheet(context, item),
+                  icon: const Icon(Icons.help_outline_rounded, size: 15),
+                  label: const Text(
+                    'Farmer Summary (6 Plain Questions)',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11.5),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 5,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: isSelected ? RashkarColors.forest : RashkarColors.ink,
+                    side: BorderSide(color: isSelected ? RashkarColors.forest : RashkarColors.borderStrong),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   onPressed: () {
                     setState(() => _selectedOpportunity = item);
                     _calculateScenario();
                     _loadComparisons();
                   },
-                  icon: Icon(isSelected ? Icons.check_circle : Icons.touch_app_outlined, size: 16),
-                  label: Text(isSelected ? 'Selected (See Outlook)' : 'Select This Option'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () => _showFarmerQaBottomSheet(context, item),
-                icon: const Icon(Icons.help_outline, size: 15),
-                label: const Text(
-                  'Farmer Summary (6 Plain Questions)',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                  icon: Icon(isSelected ? Icons.check_circle : Icons.trending_up, size: 16),
+                  label: Text(isSelected ? 'Selected' : 'See Outlook', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
                 ),
               ),
             ],
@@ -1422,15 +1485,41 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
                     isWarning: true,
                   ),
                   const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1B5E20),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Back to Opportunities'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: RashkarColors.ink,
+                            side: const BorderSide(color: RashkarColors.borderStrong),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text('Back to Opportunities'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            setState(() => _selectedOpportunity = item);
+                            _calculateScenario();
+                            _loadComparisons();
+                          },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: RashkarColors.forest,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.trending_up, size: 16),
+                          label: const Text('See Full Outlook', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2241,41 +2330,3 @@ class _ExtraIncomeScreenState extends State<ExtraIncomeScreen> {
   }
 }
 
-class _IncomeHeroPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _IncomeHeroPill(this.icon, this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: RashkarColors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: RashkarColors.paleSage),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 15, color: RashkarColors.forest),
-          const SizedBox(width: 6),
-          Text(
-            '$label: ',
-            style: const TextStyle(fontSize: 12, color: RashkarColors.mutedInk),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: RashkarColors.ink,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

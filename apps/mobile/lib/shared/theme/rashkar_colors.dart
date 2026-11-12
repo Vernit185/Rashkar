@@ -29,31 +29,42 @@ class RashkarColors {
   const RashkarColors._();
 
   // AgriNova-Inspired Clean Canvas & Warm Soft Mint Surfaces
-  static const Color canvas = Color(0xFFF8FAF8);
-  static const Color deskBg = Color(0xFFF0F5F1);
+  static const Color canvas = Color(0xFFFAF9F3); // Warm cream canvas (#FAF9F3)
+  static const Color deskBg = Color(0xFFF6F7F1);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceSubtle = Color(0xFFE8F0EB);
-  static const Color softMint = Color(0xFFE8F0EB);
-  static const Color paleSage = Color(0xFFDCE9DF);
-  static const Color border = Color(0xFFDCE9DF);
-  static const Color borderStrong = Color(0xFFBCCEC1);
+  static const Color surfaceSubtle = Color(0xFFFAF9F3);
+  static const Color softMint = Color(0xFFE8F0E8);
+  static const Color paleSage = Color(0xFFE2E8E0);
+  static const Color border = Color(0xFFE2E8E0);
+  static const Color borderStrong = Color(0xFFCCD5CA);
+
+  // Warm Human Agritech Accents (Natural Palette)
+  static const Color warmCream = Color(0xFFFAF9F3);
+  static const Color softSage = Color(0xFFE5EFE5);
+  static const Color lightMint = Color(0xFFDCEBDD);
+  static const Color warmYellow = Color(0xFFF5E9BE);
+  static const Color warmYellowBg = Color(0xFFFFFDF5);
+  static const Color mutedPeach = Color(0xFFF5E1D3);
+  static const Color mutedPeachBg = Color(0xFFFDF7F4);
+  static const Color softBlue = Color(0xFFE1EFF2);
+  static const Color softBlueBg = Color(0xFFF5FBFC);
 
   // AgriNova Dark Text Typography (High-Contrast, Warm Charcoal)
-  static const Color ink = Color(0xFF20252C);
-  static const Color mutedInk = Color(0xFF63736A);
-  static const Color subtleInk = Color(0xFF7A8A81);
+  static const Color ink = Color(0xFF202924);
+  static const Color mutedInk = Color(0xFF68766D);
+  static const Color subtleInk = Color(0xFF8A978F);
 
   // Main Agricultural Green (Primary Brand, Buttons & Active Accents)
-  static const Color forest = Color(0xFF287D49);
-  static const Color forestDark = Color(0xFF1B5E34);
-  static const Color forestTint = Color(0xFF287D49);
-  static const Color forestTextMuted = Color(0xFFDCE9DF);
-  static const Color agGreen = Color(0xFF287D49);
+  static const Color forest = Color(0xFF27804C);
+  static const Color forestDark = Color(0xFF1D5D3A);
+  static const Color forestTint = Color(0xFF27804C);
+  static const Color forestTextMuted = Color(0xFFE8F0E8);
+  static const Color agGreen = Color(0xFF27804C);
 
   // Subtle Natural Mint Highlight Tints
-  static const Color mintBg = Color(0xFFE8F0EB);
-  static const Color mintTrack = Color(0xFFDCE9DF);
-  static const Color mintBorder = Color(0xFFBCCEC1);
+  static const Color mintBg = Color(0xFFDDEBDF);
+  static const Color mintTrack = Color(0xFFE8F0E8);
+  static const Color mintBorder = Color(0xFFCCD5CA);
 
   // Restrained Earth Amber Secondary Accent (Muted Warnings & Heat Risks Only)
   static const Color marigold = Color(0xFFD97706);
