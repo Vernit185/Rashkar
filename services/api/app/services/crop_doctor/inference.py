@@ -8,7 +8,10 @@ import io
 import threading
 from typing import Any, Dict
 
+from cropnet.services.api.app.core.config import settings
+
 MODEL_ID = "neghani/plantvillage-mobilenetv2"
+UNAVAILABLE_MESSAGE = "Crop Doctor is temporarily unavailable."
 
 _lock = threading.Lock()
 _state: Dict[str, Any] = {
@@ -22,6 +25,8 @@ _state: Dict[str, Any] = {
 
 def _load() -> None:
     global _state
+    if not settings.CROP_DOCTOR_ENABLED:
+        return
     with _lock:
         if _state["attempted"]:
             return
@@ -40,16 +45,35 @@ def _load() -> None:
 
 
 def is_available() -> bool:
+    if not settings.CROP_DOCTOR_ENABLED:
+        return False
     _load()
     return bool(_state["loaded"])
 
 
 def model_status() -> Dict[str, Any]:
+    if not settings.CROP_DOCTOR_ENABLED:
+        return {
+            "loaded": False,
+            "available": False,
+            "enabled": False,
+            "model_id": MODEL_ID,
+            "message": UNAVAILABLE_MESSAGE,
+            "error": UNAVAILABLE_MESSAGE,
+        }
     _load()
-    return {"loaded": bool(_state["loaded"]), "model_id": MODEL_ID, "error": _state["error"]}
+    return {
+        "loaded": bool(_state["loaded"]),
+        "available": bool(_state["loaded"]),
+        "enabled": True,
+        "model_id": MODEL_ID,
+        "error": _state["error"],
+    }
 
 
 def get_prediction(image_bytes: bytes) -> Dict[str, Any]:
+    if not settings.CROP_DOCTOR_ENABLED:
+        raise RuntimeError(UNAVAILABLE_MESSAGE)
     _load()
     if not _state["loaded"]:
         raise RuntimeError(

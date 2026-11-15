@@ -69,6 +69,37 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleGuestSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final auth = AuthService.instance;
+      if (!auth.isConfigured) {
+        if (mounted) context.go('/');
+        return;
+      }
+      await auth.signInAnonymously();
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isConfigured = AuthService.instance.isConfigured;
@@ -189,6 +220,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           )
                         : const Text('Sign In / साइन इन करा'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _handleGuestSignIn,
+                    icon: const Icon(Icons.person_outline, size: 18),
+                    label: const Text('Continue without account'),
                   ),
                   const SizedBox(height: 14),
 

@@ -21,11 +21,36 @@ class CropDoctorScreen extends StatefulWidget {
 
 class _CropDoctorScreenState extends State<CropDoctorScreen> {
   bool _isLoading = false;
+  bool _isUnavailable = false;
   Map<String, dynamic>? _diagnosisResult;
   String? _errorMessage;
   String? _uploadedFileName;
   String? _selectedSampleName; // only set when a sample preset is tapped
   final Set<int> _completedSteps = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAvailability();
+  }
+
+  Future<void> _checkAvailability() async {
+    try {
+      final uri = Uri.parse(_buildApiUrl(ApiConstants.cropDoctorStatus));
+      final response = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        if (decoded['enabled'] == false && mounted) {
+          setState(() {
+            _isUnavailable = true;
+            _errorMessage = 'Crop Doctor is temporarily unavailable.';
+          });
+        }
+      }
+    } catch (_) {
+      // Ignore transient network errors on initial status probe.
+    }
+  }
 
   final List<Map<String, String>> _samplePresets = [
     {
@@ -130,6 +155,12 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
           _diagnosisResult = jsonDecode(body) as Map<String, dynamic>;
           _isLoading = false;
         });
+      } else if (streamed.statusCode == 503) {
+        setState(() {
+          _isUnavailable = true;
+          _errorMessage = 'Crop Doctor is temporarily unavailable.';
+          _isLoading = false;
+        });
       } else {
         setState(() {
           _errorMessage = "We couldn't check this photo right now. Please try again.";
@@ -167,6 +198,12 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
       if (response.statusCode == 200) {
         setState(() {
           _diagnosisResult = jsonDecode(response.body) as Map<String, dynamic>;
+          _isLoading = false;
+        });
+      } else if (response.statusCode == 503) {
+        setState(() {
+          _isUnavailable = true;
+          _errorMessage = 'Crop Doctor is temporarily unavailable.';
           _isLoading = false;
         });
       } else {
@@ -209,6 +246,13 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
     final leftCapturePanel = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_isUnavailable) ...[
+          const RashkarNoticeCallout(
+            title: 'Crop Doctor Unavailable',
+            message: 'Crop Doctor is temporarily unavailable.',
+          ),
+          const SizedBox(height: 14),
+        ],
         // ── Step progress ────────────────────────────────────────
         RashkarCard(
           padding: const EdgeInsets.all(16),
@@ -230,7 +274,7 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
           icon:
               _uploadedFileName != null ? Icons.check_circle_outline : Icons.camera_alt_outlined,
           isBusy: _isLoading,
-          onPrimaryTap: _isLoading ? () {} : _pickAndUploadImage,
+          onPrimaryTap: (_isLoading || _isUnavailable) ? () {} : _pickAndUploadImage,
         ),
         const SizedBox(height: 20),
 
@@ -262,7 +306,7 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
               selected: isSelected,
               padding: const EdgeInsets.all(14),
               backgroundColor: RashkarColors.surface,
-              onTap: _isLoading ? null : () => _diagnoseSample(fname),
+              onTap: (_isLoading || _isUnavailable) ? null : () => _diagnoseSample(fname),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

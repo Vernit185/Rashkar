@@ -47,8 +47,8 @@ void main() async {
   runApp(const CropNetApp());
 }
 
-// MapTiler API key (configured from backend env)
-const String kMapTilerApiKey = "TZ8qXSGUgAKX9HPNbzpO";
+// MapTiler API key (injected via --dart-define=MAPTILER_API_KEY=...)
+const String kMapTilerApiKey = String.fromEnvironment('MAPTILER_API_KEY');
 
 /// Farm model for mobile client
 class FarmItem {

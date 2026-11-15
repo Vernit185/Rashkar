@@ -34,6 +34,9 @@ async def health_check():
     ollama_online = ollama.is_available()
     model_online = ollama.is_model_available() if ollama_online else False
 
+    llm_provider = "groq" if settings.LLM_PROVIDER.lower() == "groq" else "ollama_local"
+    llm_model = settings.GROQ_MODEL if llm_provider == "groq" else settings.OLLAMA_MODEL
+
     return HealthCheckResponse(
         status="healthy",
         app_name=settings.APP_NAME,
@@ -63,9 +66,8 @@ async def health_check():
             }
         },
         llm_runtime={
-            "provider": "ollama_local",
-            "base_url": settings.OLLAMA_BASE_URL,
-            "configured_model": settings.OLLAMA_MODEL,
+            "provider": llm_provider,
+            "configured_model": llm_model,
             "ollama_server_online": ollama_online,
             "model_available": model_online,
             "operational": ollama_online and model_online,

@@ -8,6 +8,7 @@ try:
 except ImportError:
     Image = None
 
+from cropnet.services.api.app.core.config import settings
 from cropnet.services.api.app.services.crop_doctor import inference
 from cropnet.services.api.app.services.crop_doctor.advice import PREVENTION_TIPS
 from cropnet.services.api.app.services.crop_doctor.service import crop_doctor_service
@@ -15,6 +16,15 @@ from cropnet.services.api.app.services.crop_doctor.service import crop_doctor_se
 router = APIRouter()
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+def _ensure_crop_doctor_enabled() -> None:
+    """Fail explicitly with HTTP 503 when Crop Doctor is disabled in cloud deployment."""
+    if not settings.CROP_DOCTOR_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=inference.UNAVAILABLE_MESSAGE,
+        )
 
 
 class PredictionSampleRequest(BaseModel):
@@ -30,6 +40,7 @@ def crop_doctor_status():
 @router.post("/predict")
 def predict_crop_disease(file: UploadFile = File(...)):
     """Diagnoses crop disease from an uploaded leaf image in a worker threadpool."""
+    _ensure_crop_doctor_enabled()
     content_type = (file.content_type or "").lower()
     if content_type and not (content_type.startswith("image/") or content_type == "application/octet-stream"):
         raise HTTPException(
@@ -88,6 +99,7 @@ def predict_crop_disease(file: UploadFile = File(...)):
 @router.post("/predict-sample")
 def predict_sample(payload: PredictionSampleRequest):
     """Diagnoses a sample disease scenario for testing and instant preview."""
+    _ensure_crop_doctor_enabled()
     try:
         sample_name = payload.sample_name
         if Image is not None:

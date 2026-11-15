@@ -15,7 +15,7 @@ import '../../../../shared/theme/rashkar_colors.dart';
 import '../../../../shared/widgets/centered_page_container.dart';
 import '../../../../shared/widgets/rashkar_ui.dart';
 
-const String kMapTilerApiKey = "TZ8qXSGUgAKX9HPNbzpO";
+const String kMapTilerApiKey = String.fromEnvironment('MAPTILER_API_KEY');
 
 /// First-Time Farmer Onboarding Wizard (Specification Part 3).
 ///

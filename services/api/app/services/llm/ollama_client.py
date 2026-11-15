@@ -17,23 +17,48 @@ logger = logging.getLogger(__name__)
 
 class OllamaClient:
     """
-    Adapter for communicating with the local Ollama daemon.
+    Adapter for communicating with the local Ollama daemon or hosted Groq Cloud API.
     """
 
     def __init__(
         self,
         base_url: Optional[str] = None,
         default_model: Optional[str] = None,
-        timeout_seconds: Optional[int] = None
+        timeout_seconds: Optional[int] = None,
+        provider: Optional[str] = None,
+        groq_api_key: Optional[str] = None,
     ):
-        self.base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
-        self.default_model = default_model or settings.OLLAMA_MODEL
-        self.timeout_seconds = timeout_seconds or settings.OLLAMA_TIMEOUT_SECONDS
+        self.provider = (provider or settings.LLM_PROVIDER or "ollama").strip().lower()
+        self.groq_api_key = groq_api_key if groq_api_key is not None else settings.GROQ_API_KEY
+        if self.provider == "groq":
+            self.base_url = (base_url or settings.GROQ_BASE_URL).rstrip("/")
+            self.default_model = default_model or settings.GROQ_MODEL
+            self.timeout_seconds = timeout_seconds or settings.GROQ_TIMEOUT_SECONDS
+        else:
+            self.base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+            self.default_model = default_model or settings.OLLAMA_MODEL
+            self.timeout_seconds = timeout_seconds or settings.OLLAMA_TIMEOUT_SECONDS
+
+    def _groq_headers(self) -> Dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.groq_api_key or ''}",
+            "Content-Type": "application/json",
+        }
 
     def is_available(self) -> bool:
         """
-        Check if the local Ollama server is responsive.
+        Check if the configured LLM runtime (Ollama or Groq) is responsive.
         """
+        if self.provider == "groq":
+            if not self.groq_api_key:
+                return False
+            try:
+                with httpx.Client(timeout=3.0) as client:
+                    resp = client.get(f"{self.base_url}/models", headers=self._groq_headers())
+                    return resp.status_code == 200
+            except Exception as e:
+                logger.debug("Groq API not reachable: %s", e)
+                return False
         if not settings.OLLAMA_ENABLED:
             return False
         try:
@@ -46,9 +71,22 @@ class OllamaClient:
 
     def is_model_available(self, model_name: Optional[str] = None) -> bool:
         """
-        Verify that the requested model is downloaded and loaded in Ollama.
+        Verify that the requested model is available in Ollama or Groq.
         """
         target = model_name or self.default_model
+        if self.provider == "groq":
+            if not self.groq_api_key:
+                return False
+            try:
+                with httpx.Client(timeout=3.0) as client:
+                    resp = client.get(f"{self.base_url}/models", headers=self._groq_headers())
+                    if resp.status_code == 200:
+                        models = [m.get("id", "") for m in resp.json().get("data", [])]
+                        return target in models
+                    return False
+            except Exception as e:
+                logger.debug("Error checking model %s in Groq: %s", target, e)
+                return False
         try:
             with httpx.Client(timeout=3.0) as client:
                 resp = client.get(f"{self.base_url}/api/tags")
@@ -63,7 +101,16 @@ class OllamaClient:
             return False
 
     async def a_is_available(self) -> bool:
-        """Async check for Ollama daemon availability."""
+        """Async check for LLM runtime availability."""
+        if self.provider == "groq":
+            if not self.groq_api_key:
+                return False
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(f"{self.base_url}/models", headers=self._groq_headers())
+                    return resp.status_code == 200
+            except Exception:
+                return False
         if not settings.OLLAMA_ENABLED:
             return False
         try:
@@ -74,8 +121,20 @@ class OllamaClient:
             return False
 
     async def a_is_model_available(self, model_name: Optional[str] = None) -> bool:
-        """Async check for target model availability in Ollama."""
+        """Async check for target model availability in Ollama or Groq."""
         target = model_name or self.default_model
+        if self.provider == "groq":
+            if not self.groq_api_key:
+                return False
+            try:
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    resp = await client.get(f"{self.base_url}/models", headers=self._groq_headers())
+                    if resp.status_code == 200:
+                        models = [m.get("id", "") for m in resp.json().get("data", [])]
+                        return target in models
+                    return False
+            except Exception:
+                return False
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(f"{self.base_url}/api/tags")
@@ -97,12 +156,22 @@ class OllamaClient:
         format: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
-        Synchronous chat completion with local Ollama.
+        Synchronous chat completion with local Ollama or Groq.
         """
         target_model = model or self.default_model
         target_temp = temperature if temperature is not None else settings.OLLAMA_TEMPERATURE
         target_max_tokens = max_tokens or max(settings.OLLAMA_MAX_TOKENS, 1024)
         req_timeout = timeout or self.timeout_seconds
+
+        if self.provider == "groq":
+            return self._groq_chat_completion(
+                messages=messages,
+                target_model=target_model,
+                target_temp=target_temp,
+                target_max_tokens=target_max_tokens,
+                req_timeout=req_timeout,
+                format=format,
+            )
 
         payload: Dict[str, Any] = {
             "model": target_model,
@@ -207,6 +276,16 @@ class OllamaClient:
         target_max_tokens = max_tokens or max(settings.OLLAMA_MAX_TOKENS, 1024)
         req_timeout = timeout or self.timeout_seconds
 
+        if self.provider == "groq":
+            return await self._a_groq_chat_completion(
+                messages=messages,
+                target_model=target_model,
+                target_temp=target_temp,
+                target_max_tokens=target_max_tokens,
+                req_timeout=req_timeout,
+                format=format,
+            )
+
         payload: Dict[str, Any] = {
             "model": target_model,
             "messages": messages,
@@ -289,3 +368,173 @@ class OllamaClient:
                 "content": None,
                 "latency_seconds": elapsed
             }
+
+    @staticmethod
+    def _clean_think_tags(content: str) -> str:
+        if "<think>" in content and "</think>" in content:
+            return content.split("</think>", 1)[1].strip()
+        return content
+
+    def _build_groq_payload(
+        self,
+        messages: List[Dict[str, str]],
+        target_model: str,
+        target_temp: float,
+        target_max_tokens: int,
+        format: Optional[Any],
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "model": target_model,
+            "messages": messages,
+            "temperature": target_temp,
+            "max_tokens": target_max_tokens,
+        }
+        if format is not None:
+            payload["response_format"] = {"type": "json_object"}
+        return payload
+
+    def _groq_chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        target_model: str,
+        target_temp: float,
+        target_max_tokens: int,
+        req_timeout: int,
+        format: Optional[Any],
+    ) -> Dict[str, Any]:
+        if not self.groq_api_key:
+            return {
+                "success": False,
+                "error_type": "configuration_error",
+                "error": "GROQ_API_KEY is not configured.",
+                "content": None,
+                "latency_seconds": 0.0,
+            }
+        payload = self._build_groq_payload(messages, target_model, target_temp, target_max_tokens, format)
+        start_t = time.time()
+        timeout_config = httpx.Timeout(timeout=float(req_timeout), connect=5.0, read=float(req_timeout))
+        try:
+            with httpx.Client(timeout=timeout_config) as client:
+                resp = client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=self._groq_headers(),
+                    json=payload,
+                )
+                elapsed = time.time() - start_t
+                return self._parse_groq_response(resp, target_model, elapsed)
+        except httpx.TimeoutException:
+            elapsed = time.time() - start_t
+            return {
+                "success": False,
+                "error_type": "timeout",
+                "error": f"Groq inference timed out after {req_timeout}s",
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+        except httpx.ConnectError as e:
+            elapsed = time.time() - start_t
+            return {
+                "success": False,
+                "error_type": "connection_refused",
+                "error": f"Could not connect to Groq API: {e}",
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+        except Exception as e:
+            elapsed = time.time() - start_t
+            return {
+                "success": False,
+                "error_type": "unspecified_error",
+                "error": str(e),
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+
+    async def _a_groq_chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        target_model: str,
+        target_temp: float,
+        target_max_tokens: int,
+        req_timeout: int,
+        format: Optional[Any],
+    ) -> Dict[str, Any]:
+        if not self.groq_api_key:
+            return {
+                "success": False,
+                "error_type": "configuration_error",
+                "error": "GROQ_API_KEY is not configured.",
+                "content": None,
+                "latency_seconds": 0.0,
+            }
+        payload = self._build_groq_payload(messages, target_model, target_temp, target_max_tokens, format)
+        start_t = time.time()
+        timeout_config = httpx.Timeout(timeout=float(req_timeout), connect=5.0, read=float(req_timeout))
+        try:
+            async with httpx.AsyncClient(timeout=timeout_config) as client:
+                resp = await client.post(
+                    f"{self.base_url}/chat/completions",
+                    headers=self._groq_headers(),
+                    json=payload,
+                )
+                elapsed = time.time() - start_t
+                return self._parse_groq_response(resp, target_model, elapsed)
+        except httpx.TimeoutException:
+            elapsed = time.time() - start_t
+            return {
+                "success": False,
+                "error_type": "timeout",
+                "error": f"Groq inference timed out after {req_timeout}s",
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+        except httpx.ConnectError as e:
+            elapsed = time.time() - start_t
+            return {
+                "success": False,
+                "error_type": "connection_refused",
+                "error": f"Could not connect to Groq API: {e}",
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+        except Exception as e:
+            elapsed = time.time() - start_t
+            return {
+                "success": False,
+                "error_type": "unspecified_error",
+                "error": str(e),
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+
+    def _parse_groq_response(self, resp: httpx.Response, target_model: str, elapsed: float) -> Dict[str, Any]:
+        if resp.status_code == 429:
+            logger.warning("Groq API rate limit exceeded (HTTP 429)")
+            return {
+                "success": False,
+                "error_type": "rate_limit",
+                "error": "Groq free-tier rate limit exceeded (HTTP 429). Please retry shortly.",
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+        if resp.status_code != 200:
+            logger.error("Groq chat error HTTP %s: %s", resp.status_code, resp.text[:300])
+            return {
+                "success": False,
+                "error_type": "http_error",
+                "error": f"HTTP {resp.status_code}: {resp.text[:300]}",
+                "content": None,
+                "latency_seconds": elapsed,
+            }
+        data = resp.json()
+        choices = data.get("choices") or []
+        raw_content = (choices[0].get("message", {}).get("content", "") if choices else "").strip()
+        content = self._clean_think_tags(raw_content)
+        usage = data.get("usage") or {}
+        return {
+            "success": True,
+            "content": content,
+            "model": data.get("model", target_model),
+            "eval_count": usage.get("completion_tokens"),
+            "latency_seconds": elapsed,
+        }

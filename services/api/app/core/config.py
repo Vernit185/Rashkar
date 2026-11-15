@@ -129,14 +129,21 @@ class Settings(BaseSettings):
     LOCAL_RASTER_CACHE_DIR: str = "./data_cache/rasters"
     ENABLE_ECONOMIC_RANKING: bool = False
     ENABLE_YIELD_PREDICTION: bool = False
+    CROP_DOCTOR_ENABLED: bool = True
 
-    # Local LLM Runtime (Ollama / Qwen3:8B)
+    # LLM Runtime (Local Ollama for dev, Groq Cloud for hosted free tier)
+    LLM_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "qwen3:8b"
     OLLAMA_TIMEOUT_SECONDS: int = 40
     OLLAMA_TEMPERATURE: float = 0.1
     OLLAMA_MAX_TOKENS: int = 600
     OLLAMA_ENABLED: bool = True
+
+    GROQ_API_KEY: Optional[str] = None
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_TIMEOUT_SECONDS: int = 40
 
     model_config = SettingsConfigDict(
         env_file=[

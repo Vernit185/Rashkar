@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: rashkar-api
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: ln -sfn . cropnet && pip install --upgrade pip && pip install -r services/api/requirements.txt
+    startCommand: PYTHONPATH=. uvicorn cropnet.services.api.app.main:app --host 0.0.0.0 --port $PORT --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOW_DEV_AUTH_BYPASS
+        value: "false"
+      - key: CROP_DOCTOR_ENABLED
+        value: "false"
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: DATABASE_URL
+        sync: false
+      - key: SYNC_DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

@@ -4,6 +4,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from cropnet.services.api.app.core.config import settings
 
+_is_prod = settings.ENVIRONMENT.lower() in ("production", "prod")
+if _is_prod and not os.environ.get("PYTEST_CURRENT_TEST"):
+    if not settings.SYNC_DATABASE_URL or settings.SYNC_DATABASE_URL.startswith("sqlite"):
+        raise RuntimeError(
+            "Production database configuration error: SYNC_DATABASE_URL must be set to a "
+            "PostgreSQL/Supabase connection string (SQLite fallback is disabled in production)."
+        )
+
 _sync_db_url = settings.SYNC_DATABASE_URL or "sqlite:///./cropnet_dev.db"
 
 # Gracefully handle Mac/Linux sqlite paths on Windows if unresolvable

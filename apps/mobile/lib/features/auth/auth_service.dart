@@ -99,6 +99,14 @@ class AuthService {
     );
   }
 
+  Future<AuthResponse> signInAnonymously() async {
+    final client = _client;
+    if (client == null) {
+      throw Exception('Supabase is not configured. Provide SUPABASE_URL and SUPABASE_ANON_KEY.');
+    }
+    return await client.auth.signInAnonymously();
+  }
+
   Future<void> signOut() async {
     await _client?.auth.signOut();
   }
