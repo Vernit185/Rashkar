@@ -20,7 +20,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $PSScriptRoot ".ollama_tunnel.env"
 
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host " RASHKAR LOCAL OLLAMA (QWEN3:8B) SECURE TUNNEL LAUNCHER" -ForegroundColor Green
+Write-Host " RASHKAR LOCAL AI (QWEN3:8B + CROP DOCTOR) TUNNEL LAUNCHER" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
 
 # 1. Check Ollama installation
@@ -74,6 +74,30 @@ if (-not (Test-Path $EnvFile)) {
 $tokenLine = Get-Content $EnvFile | Where-Object { $_ -match "^OLLAMA_AUTH_TOKEN=" } | Select-Object -First 1
 $authToken = ($tokenLine -replace "^OLLAMA_AUTH_TOKEN=", "").Trim()
 
+# 5b. Start local Crop Doctor PyTorch server on 127.0.0.1:11436 if not running
+$cdReady = $false
+try {
+    $cdHealth = Invoke-RestMethod -Uri "http://127.0.0.1:11436/health" -TimeoutSec 2 -ErrorAction Stop
+    if ($cdHealth.loaded) { $cdReady = $true }
+} catch {}
+
+if (-not $cdReady) {
+    Write-Host "[5b/8] Starting Crop Doctor PyTorch server (neghani/plantvillage-mobilenetv2) on 127.0.0.1:11436..." -ForegroundColor Cyan
+    $cdCmd = "python '$PSScriptRoot\crop_doctor_local_server.py'"
+    Start-Process -FilePath "powershell.exe" -ArgumentList "-NoExit", "-Command", $cdCmd -WindowStyle Minimized
+    for ($i = 0; $i -lt 30; $i++) {
+        Start-Sleep -Seconds 2
+        try {
+            $cdHealth = Invoke-RestMethod -Uri "http://127.0.0.1:11436/health" -TimeoutSec 3 -ErrorAction Stop
+            if ($cdHealth.loaded) { $cdReady = $true; break }
+        } catch {}
+    }
+    if (-not $cdReady) {
+        Write-Error "Crop Doctor PyTorch server did not become ready on 127.0.0.1:11436."
+    }
+}
+Write-Host "[5b/8] Crop Doctor ready: $($cdHealth.model_id) on 127.0.0.1:11436" -ForegroundColor Green
+
 # 6. Start authenticated proxy on 127.0.0.1:11435 if not running
 $proxyRunning = $false
 try {
@@ -105,7 +129,8 @@ try {
 }
 
 $authCheck = Invoke-RestMethod -Uri "http://127.0.0.1:11435/api/tags" -Headers @{ Authorization = "Bearer $authToken" } -TimeoutSec 4
-Write-Host "[6/7] Proxy security verified: unauthenticated=401, authenticated=200 ($($authCheck.models.Count) models)." -ForegroundColor Green
+$cdProxyCheck = Invoke-RestMethod -Uri "http://127.0.0.1:11435/crop-doctor/status" -Headers @{ Authorization = "Bearer $authToken" } -TimeoutSec 4
+Write-Host "[6/8] Proxy security verified: unauthenticated=401, Ollama=200 ($($authCheck.models.Count) models), CropDoctor=$($cdProxyCheck.loaded)" -ForegroundColor Green
 
 # 7. Start ngrok static domain tunnel if configured
 $ngrokCmd = Get-Command ngrok -ErrorAction SilentlyContinue
@@ -126,12 +151,26 @@ if (-not $NgrokDomain) {
     exit 0
 }
 
-Write-Host "[7/7] Starting ngrok HTTPS tunnel: https://$NgrokDomain -> http://127.0.0.1:11435" -ForegroundColor Green
-Start-Process -FilePath $ngrokExe -ArgumentList "http", "--domain=$NgrokDomain", "11435" -WindowStyle Minimized
-Start-Sleep -Seconds 3
+$ngrokExisting = Get-Process -Name "ngrok" -ErrorAction SilentlyContinue
+if (-not $ngrokExisting) {
+    Write-Host "[7/8] Starting ngrok HTTPS tunnel: https://$NgrokDomain -> http://127.0.0.1:11435" -ForegroundColor Green
+    Start-Process -FilePath $ngrokExe -ArgumentList "http", "--domain=$NgrokDomain", "11435" -WindowStyle Minimized
+    Start-Sleep -Seconds 3
+} else {
+    Write-Host "[7/8] ngrok process already running; verifying tunnel https://$NgrokDomain..." -ForegroundColor Cyan
+}
 
 $tunnelTags = Invoke-RestMethod -Uri "https://$NgrokDomain/api/tags" -Headers @{
     Authorization = "Bearer $authToken"
     "ngrok-skip-browser-warning" = "true"
 } -TimeoutSec 8
-Write-Host "[OK] Live Authenticated Tunnel Verified: https://$NgrokDomain (models: $($tunnelTags.models.Count))" -ForegroundColor Green
+$tunnelCd = Invoke-RestMethod -Uri "https://$NgrokDomain/crop-doctor/status" -Headers @{
+    Authorization = "Bearer $authToken"
+    "ngrok-skip-browser-warning" = "true"
+} -TimeoutSec 8
+Write-Host "----------------------------------------------------------" -ForegroundColor Green
+Write-Host " Ollama (qwen3:8b) : READY ($($tunnelTags.models.Count) models)" -ForegroundColor Green
+Write-Host " Crop Doctor (PyTorch) : READY ($($tunnelCd.model_id))" -ForegroundColor Green
+Write-Host " Auth Proxy (11435)    : READY" -ForegroundColor Green
+Write-Host " Ngrok Tunnel          : CONNECTED (https://$NgrokDomain)" -ForegroundColor Green
+Write-Host "----------------------------------------------------------" -ForegroundColor Green

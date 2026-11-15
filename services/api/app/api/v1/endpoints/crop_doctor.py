@@ -1,5 +1,7 @@
+import base64
 import io
-from typing import Optional
+from typing import Any, Dict, Optional
+import httpx
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
@@ -16,15 +18,86 @@ from cropnet.services.api.app.services.crop_doctor.service import crop_doctor_se
 router = APIRouter()
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
+REMOTE_TARGET_BYTES = 3 * 1024 * 1024  # keep Ngrok Free uploads compact
+
+
+def _is_remote_mode() -> bool:
+    return (settings.CROP_DOCTOR_MODE or "local").strip().lower() == "remote"
+
+
+def _remote_base_url() -> str:
+    return (settings.CROP_DOCTOR_REMOTE_URL or settings.OLLAMA_BASE_URL or "").rstrip("/")
+
+
+def _remote_headers() -> Dict[str, str]:
+    headers: Dict[str, str] = {"ngrok-skip-browser-warning": "true"}
+    if settings.OLLAMA_AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.OLLAMA_AUTH_TOKEN}"
+    if settings.OLLAMA_CF_ACCESS_CLIENT_ID and settings.OLLAMA_CF_ACCESS_CLIENT_SECRET:
+        headers["CF-Access-Client-Id"] = settings.OLLAMA_CF_ACCESS_CLIENT_ID
+        headers["CF-Access-Client-Secret"] = settings.OLLAMA_CF_ACCESS_CLIENT_SECRET
+    return headers
 
 
 def _ensure_crop_doctor_enabled() -> None:
     """Fail explicitly with HTTP 503 when Crop Doctor is disabled in cloud deployment."""
-    if not settings.CROP_DOCTOR_ENABLED:
+    if not _is_remote_mode() and not settings.CROP_DOCTOR_ENABLED:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=inference.UNAVAILABLE_MESSAGE,
         )
+
+
+def _compact_image_for_tunnel(content: bytes) -> bytes:
+    """Resize/re-encode oversized uploads in memory so Ngrok Free bandwidth stays bounded."""
+    if len(content) <= REMOTE_TARGET_BYTES or Image is None:
+        return content
+    try:
+        with Image.open(io.BytesIO(content)) as img:
+            img = img.convert("RGB")
+            img.thumbnail((1024, 1024))
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=85, optimize=True)
+            return buf.getvalue()
+    except Exception:
+        return content
+
+
+def _forward_remote_predict(content: bytes, filename: str, content_type: str) -> Dict[str, Any]:
+    base = _remote_base_url()
+    if not base:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=inference.UNAVAILABLE_MESSAGE,
+        )
+    compact = _compact_image_for_tunnel(content)
+    payload = {
+        "image_base64": base64.b64encode(compact).decode("ascii"),
+        "filename": filename or "leaf.jpg",
+        "content_type": content_type or "image/jpeg",
+    }
+    try:
+        with httpx.Client(timeout=settings.CROP_DOCTOR_REMOTE_TIMEOUT_SECONDS) as client:
+            resp = client.post(
+                f"{base}/crop-doctor/predict",
+                json=payload,
+                headers=_remote_headers(),
+            )
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=inference.UNAVAILABLE_MESSAGE,
+        ) from exc
+
+    if resp.status_code == 200:
+        return resp.json()
+    if resp.status_code == 400:
+        detail = resp.json().get("error", "Invalid leaf image.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=inference.UNAVAILABLE_MESSAGE,
+    )
 
 
 class PredictionSampleRequest(BaseModel):
@@ -33,13 +106,41 @@ class PredictionSampleRequest(BaseModel):
 
 @router.get("/status")
 def crop_doctor_status():
-    """Report whether the optional vision model stack is loaded."""
+    """Report whether the optional vision model stack is loaded (local or remote tunnel)."""
+    if _is_remote_mode():
+        base = _remote_base_url()
+        if base:
+            try:
+                with httpx.Client(timeout=4.0) as client:
+                    resp = client.get(f"{base}/crop-doctor/status", headers=_remote_headers())
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("loaded"):
+                        return {
+                            "loaded": True,
+                            "available": True,
+                            "enabled": True,
+                            "mode": "remote",
+                            "model_id": data.get("model_id", inference.MODEL_ID),
+                            "error": None,
+                        }
+            except httpx.HTTPError:
+                pass
+        return {
+            "loaded": False,
+            "available": False,
+            "enabled": False,
+            "mode": "remote",
+            "model_id": inference.MODEL_ID,
+            "message": inference.UNAVAILABLE_MESSAGE,
+            "error": inference.UNAVAILABLE_MESSAGE,
+        }
     return inference.model_status()
 
 
 @router.post("/predict")
 def predict_crop_disease(file: UploadFile = File(...)):
-    """Diagnoses crop disease from an uploaded leaf image in a worker threadpool."""
+    """Diagnoses crop disease from an uploaded leaf image (locally or via authenticated tunnel)."""
     _ensure_crop_doctor_enabled()
     content_type = (file.content_type or "").lower()
     if content_type and not (content_type.startswith("image/") or content_type == "application/octet-stream"):
@@ -53,6 +154,9 @@ def predict_crop_disease(file: UploadFile = File(...)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded image is empty.")
     if len(content) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Image exceeds the 10 MB limit.")
+
+    if _is_remote_mode():
+        return _forward_remote_predict(content, file.filename or "leaf.jpg", content_type)
 
     try:
         result = inference.get_prediction(content)
@@ -100,16 +204,24 @@ def predict_crop_disease(file: UploadFile = File(...)):
 def predict_sample(payload: PredictionSampleRequest):
     """Diagnoses a sample disease scenario for testing and instant preview."""
     _ensure_crop_doctor_enabled()
-    try:
-        sample_name = payload.sample_name
-        if Image is not None:
-            img = Image.new("RGB", (128, 128), color=(180, 100, 50) if "blight" in sample_name.lower() else (34, 139, 34))
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG")
-            sample_bytes = buf.getvalue()
-        else:
-            sample_bytes = b"sample-image-data-placeholder" * 10
+    sample_name = payload.sample_name
+    if Image is not None:
+        img = Image.new("RGB", (128, 128), color=(180, 100, 50) if "blight" in sample_name.lower() else (34, 139, 34))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG")
+        sample_bytes = buf.getvalue()
+    else:
+        sample_bytes = b"sample-image-data-placeholder" * 10
 
+    if _is_remote_mode():
+        if Image is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=inference.UNAVAILABLE_MESSAGE,
+            )
+        return _forward_remote_predict(sample_bytes, sample_name, "image/jpeg")
+
+    try:
         result = crop_doctor_service.diagnose_image(
             image_bytes=sample_bytes,
             filename=sample_name

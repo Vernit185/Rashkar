@@ -19,19 +19,25 @@ from typing import Deque
 import httpx
 
 OLLAMA_UPSTREAM = os.environ.get("OLLAMA_UPSTREAM", "http://127.0.0.1:11434").rstrip("/")
+CROP_DOCTOR_UPSTREAM = os.environ.get("CROP_DOCTOR_UPSTREAM", "http://127.0.0.1:11436").rstrip("/")
 PROXY_HOST = os.environ.get("OLLAMA_PROXY_HOST", "127.0.0.1")
 PROXY_PORT = int(os.environ.get("OLLAMA_PROXY_PORT", "11435"))
 AUTH_TOKEN = os.environ.get("OLLAMA_AUTH_TOKEN", "")
 MAX_CONCURRENT = max(1, int(os.environ.get("OLLAMA_PROXY_MAX_CONCURRENT", "2")))
+CROP_DOCTOR_MAX_CONCURRENT = max(1, int(os.environ.get("CROP_DOCTOR_PROXY_MAX_CONCURRENT", "2")))
 RATE_LIMIT_PER_MIN = max(1, int(os.environ.get("OLLAMA_PROXY_RPM", "20")))
 REQUEST_TIMEOUT = float(os.environ.get("OLLAMA_PROXY_TIMEOUT", "90"))
+CROP_DOCTOR_TIMEOUT = float(os.environ.get("CROP_DOCTOR_PROXY_TIMEOUT", "30"))
 
-_ALLOWED_ROUTES = {
-    ("GET", "/api/tags"),
-    ("POST", "/api/chat"),
+_ROUTE_MAP = {
+    ("GET", "/api/tags"): (OLLAMA_UPSTREAM, "/api/tags", "ollama"),
+    ("POST", "/api/chat"): (OLLAMA_UPSTREAM, "/api/chat", "ollama"),
+    ("GET", "/crop-doctor/status"): (CROP_DOCTOR_UPSTREAM, "/health", "crop_doctor"),
+    ("POST", "/crop-doctor/predict"): (CROP_DOCTOR_UPSTREAM, "/predict", "crop_doctor"),
 }
 
 _concurrency_sem = threading.BoundedSemaphore(MAX_CONCURRENT)
+_crop_doctor_sem = threading.BoundedSemaphore(CROP_DOCTOR_MAX_CONCURRENT)
 _rate_lock = threading.Lock()
 _request_timestamps: Deque[float] = deque()
 
@@ -75,34 +81,52 @@ class OllamaAuthProxyHandler(BaseHTTPRequestHandler):
             return
 
         path = self.path.split("?", 1)[0]
-        if (method, path) not in _ALLOWED_ROUTES:
+        route = _ROUTE_MAP.get((method, path))
+        if route is None:
             self._send_json(403, {"error": f"Forbidden: {method} {path} is not exposed by this gateway."})
             return
 
+        upstream_base, upstream_path, service_kind = route
+
         if not _check_rate_limit():
-            self._send_json(429, {"error": "Rate limit exceeded for local Ollama gateway."})
+            self._send_json(429, {"error": "Rate limit exceeded for local AI gateway."})
             return
 
         body = b""
+        req_content_type = (self.headers.get("Content-Type") or "application/json").split(";")[0].strip().lower()
         if method == "POST":
             content_len = int(self.headers.get("Content-Length", "0"))
-            if content_len > 256 * 1024:
+            max_bytes = 7 * 1024 * 1024 if service_kind == "crop_doctor" else 256 * 1024
+            if content_len > max_bytes:
                 self._send_json(413, {"error": "Request payload too large."})
+                return
+            if service_kind == "crop_doctor" and req_content_type not in {
+                "application/json",
+                "image/jpeg",
+                "image/jpg",
+                "image/png",
+                "image/webp",
+            }:
+                self._send_json(415, {"error": "Unsupported Content-Type for Crop Doctor."})
                 return
             body = self.rfile.read(content_len) if content_len > 0 else b""
 
-        acquired = _concurrency_sem.acquire(blocking=True, timeout=5.0)
+        sem = _crop_doctor_sem if service_kind == "crop_doctor" else _concurrency_sem
+        timeout = CROP_DOCTOR_TIMEOUT if service_kind == "crop_doctor" else REQUEST_TIMEOUT
+        service_label = "Crop Doctor" if service_kind == "crop_doctor" else "Ollama"
+
+        acquired = sem.acquire(blocking=True, timeout=5.0)
         if not acquired:
-            self._send_json(429, {"error": "Local Ollama is busy; please retry shortly."})
+            self._send_json(429, {"error": f"Local {service_label} is busy; please retry shortly."})
             return
 
         try:
-            with httpx.Client(timeout=REQUEST_TIMEOUT) as client:
+            with httpx.Client(timeout=timeout) as client:
                 upstream_resp = client.request(
                     method=method,
-                    url=f"{OLLAMA_UPSTREAM}{path}",
+                    url=f"{upstream_base}{upstream_path}",
                     content=body if method == "POST" else None,
-                    headers={"Content-Type": "application/json"} if method == "POST" else None,
+                    headers={"Content-Type": req_content_type} if method == "POST" else None,
                 )
             resp_bytes = upstream_resp.content
             self.send_response(upstream_resp.status_code)
@@ -114,13 +138,13 @@ class OllamaAuthProxyHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(resp_bytes)
         except httpx.ConnectError:
-            self._send_json(503, {"error": "Local Ollama daemon is not running on 127.0.0.1:11434."})
+            self._send_json(503, {"error": f"Local {service_label} service is not running."})
         except httpx.TimeoutException:
-            self._send_json(504, {"error": "Local Ollama inference timed out."})
+            self._send_json(504, {"error": f"Local {service_label} inference timed out."})
         except Exception as exc:
             self._send_json(502, {"error": f"Gateway error: {exc}"})
         finally:
-            _concurrency_sem.release()
+            sem.release()
 
     def do_GET(self) -> None:  # noqa: N802
         self._handle("GET")

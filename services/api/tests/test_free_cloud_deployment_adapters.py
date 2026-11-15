@@ -165,3 +165,67 @@ def test_ollama_tunnel_proxy_auth_and_route_allowlist():
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_crop_doctor_remote_mode_forwards_with_auth(monkeypatch):
+    monkeypatch.setattr(settings, "CROP_DOCTOR_ENABLED", False)
+    monkeypatch.setattr(settings, "CROP_DOCTOR_MODE", "remote")
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", "https://tunnel.example.test")
+    monkeypatch.setattr(settings, "OLLAMA_AUTH_TOKEN", "secret_tunnel_tok")
+
+    mock_status = MagicMock(status_code=200)
+    mock_status.json.return_value = {"loaded": True, "model_id": "neghani/plantvillage-mobilenetv2"}
+
+    mock_pred = MagicMock(status_code=200)
+    mock_pred.json.return_value = {
+        "crop": "Tomato",
+        "diagnosis": "Early blight",
+        "confidence_percent": 96.4,
+        "is_healthy": False,
+        "actionable_advice": ["Remove lower infected leaves."],
+    }
+
+    with patch("cropnet.services.api.app.api.v1.endpoints.crop_doctor.httpx.Client") as mock_client_cls:
+        mock_http = mock_client_cls.return_value.__enter__.return_value
+        mock_http.get.return_value = mock_status
+        mock_http.post.return_value = mock_pred
+
+        st_resp = client.get("/api/v1/crop-doctor/status")
+        assert st_resp.status_code == 200
+        assert st_resp.json()["available"] is True
+        assert st_resp.json()["enabled"] is True
+
+        pr_resp = client.post(
+            "/api/v1/crop-doctor/predict",
+            files={"file": ("leaf.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 200, "image/jpeg")},
+        )
+        assert pr_resp.status_code == 200
+        assert pr_resp.json()["diagnosis"] == "Early blight"
+
+        _, post_kwargs = mock_http.post.call_args
+        assert post_kwargs["headers"]["Authorization"] == "Bearer secret_tunnel_tok"
+
+
+def test_crop_doctor_remote_mode_offline_returns_503(monkeypatch):
+    import httpx as _httpx
+
+    monkeypatch.setattr(settings, "CROP_DOCTOR_ENABLED", False)
+    monkeypatch.setattr(settings, "CROP_DOCTOR_MODE", "remote")
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", "https://tunnel.example.test")
+
+    with patch("cropnet.services.api.app.api.v1.endpoints.crop_doctor.httpx.Client") as mock_client_cls:
+        mock_http = mock_client_cls.return_value.__enter__.return_value
+        mock_http.get.side_effect = _httpx.ConnectError("offline")
+        mock_http.post.side_effect = _httpx.ConnectError("offline")
+
+        st_resp = client.get("/api/v1/crop-doctor/status")
+        assert st_resp.status_code == 200
+        assert st_resp.json()["available"] is False
+        assert st_resp.json()["enabled"] is False
+
+        pr_resp = client.post(
+            "/api/v1/crop-doctor/predict",
+            files={"file": ("leaf.jpg", b"\xff\xd8\xff\xe0" + b"\x00" * 200, "image/jpeg")},
+        )
+        assert pr_resp.status_code == 503
+        assert pr_resp.json()["detail"] == "Crop Doctor is temporarily unavailable."

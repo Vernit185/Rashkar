@@ -38,14 +38,13 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
     try {
       final uri = Uri.parse(_buildApiUrl(ApiConstants.cropDoctorStatus));
       final response = await http.get(uri).timeout(const Duration(seconds: 8));
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && mounted) {
         final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-        if (decoded['enabled'] == false && mounted) {
-          setState(() {
-            _isUnavailable = true;
-            _errorMessage = 'Crop Doctor is temporarily unavailable.';
-          });
-        }
+        final ready = decoded['enabled'] == true && decoded['available'] == true;
+        setState(() {
+          _isUnavailable = !ready;
+          _errorMessage = ready ? null : 'Crop Doctor is temporarily unavailable.';
+        });
       }
     } catch (_) {
       // Ignore transient network errors on initial status probe.
@@ -251,7 +250,15 @@ class _CropDoctorScreenState extends State<CropDoctorScreen> {
             title: 'Crop Doctor Unavailable',
             message: 'Crop Doctor is temporarily unavailable.',
           ),
-          const SizedBox(height: 14),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _checkAvailability,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+            ),
+          ),
+          const SizedBox(height: 10),
         ],
         // ── Step progress ────────────────────────────────────────
         RashkarCard(

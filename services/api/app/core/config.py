@@ -130,6 +130,9 @@ class Settings(BaseSettings):
     ENABLE_ECONOMIC_RANKING: bool = False
     ENABLE_YIELD_PREDICTION: bool = False
     CROP_DOCTOR_ENABLED: bool = True
+    CROP_DOCTOR_MODE: str = "local"  # "local" | "remote" | "disabled"
+    CROP_DOCTOR_REMOTE_URL: Optional[str] = None
+    CROP_DOCTOR_REMOTE_TIMEOUT_SECONDS: float = 30.0
 
     # LLM Runtime (Local Ollama for dev, or authenticated tunnel to local Ollama in cloud)
     LLM_PROVIDER: str = "ollama"
