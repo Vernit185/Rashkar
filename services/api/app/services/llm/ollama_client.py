@@ -6,6 +6,7 @@ Strictly local: never exposes Ollama externally; only internal backend
 services may communicate with this client.
 """
 import logging
+import threading
 import time
 from typing import Dict, Any, List, Optional
 import httpx
@@ -13,6 +14,9 @@ import httpx
 from cropnet.services.api.app.core.config import settings
 
 logger = logging.getLogger(__name__)
+_ollama_concurrency_semaphore = threading.BoundedSemaphore(
+    max(1, int(getattr(settings, "OLLAMA_MAX_CONCURRENT_REQUESTS", 2)))
+)
 
 
 class OllamaClient:
@@ -45,6 +49,17 @@ class OllamaClient:
             "Content-Type": "application/json",
         }
 
+    def _ollama_headers(self) -> Dict[str, str]:
+        headers: Dict[str, str] = {"Content-Type": "application/json"}
+        if settings.OLLAMA_AUTH_TOKEN:
+            headers["Authorization"] = f"Bearer {settings.OLLAMA_AUTH_TOKEN}"
+        if settings.OLLAMA_CF_ACCESS_CLIENT_ID and settings.OLLAMA_CF_ACCESS_CLIENT_SECRET:
+            headers["CF-Access-Client-Id"] = settings.OLLAMA_CF_ACCESS_CLIENT_ID
+            headers["CF-Access-Client-Secret"] = settings.OLLAMA_CF_ACCESS_CLIENT_SECRET
+        if "ngrok" in self.base_url:
+            headers["ngrok-skip-browser-warning"] = "true"
+        return headers
+
     def is_available(self) -> bool:
         """
         Check if the configured LLM runtime (Ollama or Groq) is responsive.
@@ -62,8 +77,8 @@ class OllamaClient:
         if not settings.OLLAMA_ENABLED:
             return False
         try:
-            with httpx.Client(timeout=3.0) as client:
-                resp = client.get(f"{self.base_url}/api/tags")
+            with httpx.Client(timeout=4.0) as client:
+                resp = client.get(f"{self.base_url}/api/tags", headers=self._ollama_headers())
                 return resp.status_code == 200
         except Exception as e:
             logger.debug(f"Ollama server not reachable at {self.base_url}: {e}")
@@ -88,8 +103,8 @@ class OllamaClient:
                 logger.debug("Error checking model %s in Groq: %s", target, e)
                 return False
         try:
-            with httpx.Client(timeout=3.0) as client:
-                resp = client.get(f"{self.base_url}/api/tags")
+            with httpx.Client(timeout=4.0) as client:
+                resp = client.get(f"{self.base_url}/api/tags", headers=self._ollama_headers())
                 if resp.status_code == 200:
                     data = resp.json()
                     models = [m.get("name", "") for m in data.get("models", [])]
@@ -114,8 +129,8 @@ class OllamaClient:
         if not settings.OLLAMA_ENABLED:
             return False
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                resp = await client.get(f"{self.base_url}/api/tags")
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                resp = await client.get(f"{self.base_url}/api/tags", headers=self._ollama_headers())
                 return resp.status_code == 200
         except Exception:
             return False
@@ -136,8 +151,8 @@ class OllamaClient:
             except Exception:
                 return False
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
-                resp = await client.get(f"{self.base_url}/api/tags")
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                resp = await client.get(f"{self.base_url}/api/tags", headers=self._ollama_headers())
                 if resp.status_code == 200:
                     data = resp.json()
                     models = [m.get("name", "") for m in data.get("models", [])]
@@ -189,24 +204,43 @@ class OllamaClient:
                 payload["format"] = format
 
         start_t = time.time()
+        if not _ollama_concurrency_semaphore.acquire(blocking=True, timeout=min(5.0, float(req_timeout))):
+            return {
+                "success": False,
+                "error_type": "rate_limit",
+                "error": "Local AI assistant is busy handling another request. Please retry shortly.",
+                "content": None,
+                "latency_seconds": time.time() - start_t,
+            }
         timeout_config = httpx.Timeout(
             timeout=float(req_timeout),
-            connect=3.0,
+            connect=5.0,
             read=float(req_timeout),
             write=10.0,
             pool=5.0
         )
         try:
             with httpx.Client(timeout=timeout_config) as client:
-                resp = client.post(f"{self.base_url}/api/chat", json=payload)
+                resp = client.post(
+                    f"{self.base_url}/api/chat",
+                    headers=self._ollama_headers(),
+                    json=payload,
+                )
                 elapsed = time.time() - start_t
 
                 if resp.status_code != 200:
-                    logger.error(f"Ollama chat error HTTP {resp.status_code}: {resp.text}")
+                    err_type = "http_error"
+                    if resp.status_code in (401, 403):
+                        err_type = "auth_error"
+                    elif resp.status_code == 429:
+                        err_type = "rate_limit"
+                    elif resp.status_code in (502, 503, 504):
+                        err_type = "tunnel_offline"
+                    logger.error(f"Ollama chat error HTTP {resp.status_code}: {resp.text[:300]}")
                     return {
                         "success": False,
-                        "error_type": "http_error",
-                        "error": f"HTTP {resp.status_code}: {resp.text}",
+                        "error_type": err_type,
+                        "error": f"HTTP {resp.status_code}: {resp.text[:300]}",
                         "content": None,
                         "latency_seconds": elapsed
                     }
@@ -258,6 +292,8 @@ class OllamaClient:
                 "content": None,
                 "latency_seconds": elapsed
             }
+        finally:
+            _ollama_concurrency_semaphore.release()
 
     async def a_chat_completion(
         self,
@@ -311,7 +347,11 @@ class OllamaClient:
         )
         try:
             async with httpx.AsyncClient(timeout=timeout_config) as client:
-                resp = await client.post(f"{self.base_url}/api/chat", json=payload)
+                resp = await client.post(
+                    f"{self.base_url}/api/chat",
+                    headers=self._ollama_headers(),
+                    json=payload,
+                )
                 elapsed = time.time() - start_t
 
                 if resp.status_code != 200:

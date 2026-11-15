@@ -45,6 +45,7 @@ GeneratedPluginRegistrant.java
 .env
 .env.local
 .env.*.local
+scripts/.ollama_tunnel.env
 *.pem
 *.key
 credentials.json

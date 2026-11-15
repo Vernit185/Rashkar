@@ -131,7 +131,7 @@ class Settings(BaseSettings):
     ENABLE_YIELD_PREDICTION: bool = False
     CROP_DOCTOR_ENABLED: bool = True
 
-    # LLM Runtime (Local Ollama for dev, Groq Cloud for hosted free tier)
+    # LLM Runtime (Local Ollama for dev, or authenticated tunnel to local Ollama in cloud)
     LLM_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://127.0.0.1:11434"
     OLLAMA_MODEL: str = "qwen3:8b"
@@ -139,6 +139,10 @@ class Settings(BaseSettings):
     OLLAMA_TEMPERATURE: float = 0.1
     OLLAMA_MAX_TOKENS: int = 600
     OLLAMA_ENABLED: bool = True
+    OLLAMA_AUTH_TOKEN: Optional[str] = None
+    OLLAMA_CF_ACCESS_CLIENT_ID: Optional[str] = None
+    OLLAMA_CF_ACCESS_CLIENT_SECRET: Optional[str] = None
+    OLLAMA_MAX_CONCURRENT_REQUESTS: int = 2
 
     GROQ_API_KEY: Optional[str] = None
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"

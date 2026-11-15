@@ -17,9 +17,17 @@ services:
       - key: CROP_DOCTOR_ENABLED
         value: "false"
       - key: LLM_PROVIDER
-        value: groq
-      - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: ollama
+      - key: OLLAMA_MODEL
+        value: qwen3:8b
+      - key: OLLAMA_TIMEOUT_SECONDS
+        value: "60"
+      - key: OLLAMA_MAX_CONCURRENT_REQUESTS
+        value: "2"
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_AUTH_TOKEN
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: SYNC_DATABASE_URL
@@ -29,8 +37,6 @@ services:
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_JWT_SECRET
-        sync: false
-      - key: GROQ_API_KEY
         sync: false
       - key: CORS_ORIGINS
         sync: false

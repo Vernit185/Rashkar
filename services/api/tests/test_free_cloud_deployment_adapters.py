@@ -95,3 +95,73 @@ def test_groq_client_missing_api_key():
     res = groq.chat_completion(messages=[{"role": "user", "content": "Hi"}])
     assert res["success"] is False
     assert res["error_type"] == "configuration_error"
+
+
+def test_ollama_tunnel_headers_and_offline_handling(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(settings, "OLLAMA_AUTH_TOKEN", "test_tunnel_secret")
+    monkeypatch.setattr(settings, "OLLAMA_BASE_URL", "https://demo.ngrok-free.app")
+
+    ollama = OllamaClient()
+    headers = ollama._ollama_headers()
+    assert headers["Authorization"] == "Bearer test_tunnel_secret"
+    assert headers["ngrok-skip-browser-warning"] == "true"
+
+    mock_offline = MagicMock()
+    mock_offline.status_code = 502
+    mock_offline.text = "Tunnel offline"
+
+    with patch("cropnet.services.api.app.services.llm.ollama_client.httpx.Client") as mock_client_cls:
+        mock_http = mock_client_cls.return_value.__enter__.return_value
+        mock_http.post.return_value = mock_offline
+        res = ollama.chat_completion(messages=[{"role": "user", "content": "Check heat risk"}])
+
+    assert res["success"] is False
+    assert res["error_type"] == "tunnel_offline"
+    _, kwargs = mock_http.post.call_args
+    assert kwargs["headers"]["Authorization"] == "Bearer test_tunnel_secret"
+
+
+def test_ollama_tunnel_proxy_auth_and_route_allowlist():
+    import threading
+    from http.server import ThreadingHTTPServer
+    import httpx
+    import sys
+    import os
+
+    sys.path.insert(0, os.path.abspath("scripts"))
+    import ollama_tunnel_proxy as proxy
+
+    proxy.AUTH_TOKEN = "unit_test_secret_token"
+    server = ThreadingHTTPServer(("127.0.0.1", 0), proxy.OllamaAuthProxyHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    try:
+        base = f"http://127.0.0.1:{port}"
+        # 1. Unauthorized request must be rejected with 401
+        r_unauth = httpx.get(f"{base}/api/tags", timeout=5.0)
+        assert r_unauth.status_code == 401
+
+        # 2. Disallowed route (/api/pull) even with valid auth must be rejected with 403
+        r_forbidden = httpx.post(
+            f"{base}/api/pull",
+            headers={"Authorization": "Bearer unit_test_secret_token"},
+            json={"name": "evil"},
+            timeout=5.0,
+        )
+        assert r_forbidden.status_code == 403
+
+        # 3. Authorized GET /api/tags forwards to local Ollama (200)
+        r_ok = httpx.get(
+            f"{base}/api/tags",
+            headers={"Authorization": "Bearer unit_test_secret_token"},
+            timeout=5.0,
+        )
+        assert r_ok.status_code == 200
+        models = [m["name"] for m in r_ok.json().get("models", [])]
+        assert any(m.startswith("qwen3:8b") for m in models)
+    finally:
+        server.shutdown()
+        server.server_close()
