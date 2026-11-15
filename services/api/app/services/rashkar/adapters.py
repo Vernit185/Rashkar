@@ -188,6 +188,7 @@ class RashkarAdaptedSession:
                     data_provenance=lab_label,
                 )
         except Exception as exc:
+            self._db.rollback()
             logger.debug("Lab soil check fallback: %s", exc)
 
         # 2. Fallback to CropNet map-derived soil profile (SoilGrids/OpenLandMap)
@@ -216,6 +217,7 @@ class RashkarAdaptedSession:
                     else soil_profile.disclaimer,
                 )
         except Exception as exc:
+            self._db.rollback()
             logger.debug("Map soil check fallback: %s", exc)
 
         return None
