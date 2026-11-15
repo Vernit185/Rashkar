@@ -108,20 +108,26 @@ $authCheck = Invoke-RestMethod -Uri "http://127.0.0.1:11435/api/tags" -Headers @
 Write-Host "[6/7] Proxy security verified: unauthenticated=401, authenticated=200 ($($authCheck.models.Count) models)." -ForegroundColor Green
 
 # 7. Start ngrok static domain tunnel if configured
-if (-not (Get-Command ngrok -ErrorAction SilentlyContinue)) {
+$ngrokCmd = Get-Command ngrok -ErrorAction SilentlyContinue
+$ngrokExe = if ($ngrokCmd) { $ngrokCmd.Source } else {
+    Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Links\ngrok.exe", "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\*ngrok*\ngrok.exe", "C:\Program Files\ngrok\ngrok.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1 -ExpandProperty FullName
+}
+
+if (-not $ngrokExe) {
     Write-Host "[7/7] ngrok is NOT installed yet. Install with: winget install Ngrok.Ngrok" -ForegroundColor Yellow
     Write-Host "      Then authenticate once: ngrok config add-authtoken <YOUR_NGROK_TOKEN>" -ForegroundColor Yellow
-    Write-Host "      Then re-run with: .\scripts\start_rashkar_ollama_tunnel.ps1 -NgrokDomain <your-static>.ngrok-free.app" -ForegroundColor Yellow
+    Write-Host "      Then re-run with: powershell -ExecutionPolicy Bypass -File .\scripts\start_rashkar_ollama_tunnel.ps1 -NgrokDomain <your-static>.ngrok-free.dev" -ForegroundColor Yellow
     exit 0
 }
 
 if (-not $NgrokDomain) {
-    Write-Host "[7/7] Pass -NgrokDomain <your-static>.ngrok-free.app (or set NGROK_STATIC_DOMAIN) to start the HTTPS tunnel." -ForegroundColor Yellow
+    Write-Host "[7/7] Pass -NgrokDomain <your-static>.ngrok-free.dev (or set NGROK_STATIC_DOMAIN) to start the HTTPS tunnel." -ForegroundColor Yellow
     exit 0
 }
 
 Write-Host "[7/7] Starting ngrok HTTPS tunnel: https://$NgrokDomain -> http://127.0.0.1:11435" -ForegroundColor Green
-Start-Process -FilePath "ngrok" -ArgumentList "http", "--domain=$NgrokDomain", "11435" -WindowStyle Minimized
+Start-Process -FilePath $ngrokExe -ArgumentList "http", "--domain=$NgrokDomain", "11435" -WindowStyle Minimized
 Start-Sleep -Seconds 3
 
 $tunnelTags = Invoke-RestMethod -Uri "https://$NgrokDomain/api/tags" -Headers @{
