@@ -1,11 +1,11 @@
 {
-    "name": "CropNet AI",
-    "short_name": "CropNet",
+    "name": "Rashkar",
+    "short_name": "Rashkar",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#1B5E20",
-    "theme_color": "#1B5E20",
-    "description": "CropNet AI — Soil Intelligence & Optimal Crop Selection",
+    "background_color": "#27804C",
+    "theme_color": "#27804C",
+    "description": "Rashkar — Farmer Service & Agricultural Intelligence",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
